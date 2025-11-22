@@ -2,6 +2,35 @@
 
 All notable changes to Selector CLI will be documented in this file.
 
+## [Phase 2 WIP] - 2025-11-22 (In Progress)
+
+### Added
+- **Lexer enhancements** for Phase 2 features
+  - Comparison operators: `>`, `>=`, `<`, `<=`
+  - String operators: `contains`, `starts`, `ends`, `matches`
+  - Parentheses: `(`, `)`
+  - Dash for ranges: `-`
+  - Boolean literals: `true`, `false`
+- **Data structures** for complex conditions
+  - `ConditionNode` class for condition trees
+  - `ConditionType` enum (SIMPLE, COMPOUND, UNARY)
+  - Extended `Operator` enum with all Phase 2 operators
+  - `RANGE` target type for `[1-10]` syntax
+- **Tests** for lexer enhancements (`test_phase2_lexer.py`) - all passing ✅
+- **Documentation** - `PHASE2_CONTINUE.md` with complete implementation guide
+
+### Status
+- ✅ Lexer: Complete and tested
+- ✅ Data structures: Complete
+- ⏳ Parser: Design ready, implementation pending
+- ⏳ Executor: Design ready, implementation pending
+- ⏳ Integration: Pending
+
+### Next Session
+Continue from `PHASE2_CONTINUE.md` - implement parser and executor (est. 3-4 hours)
+
+---
+
 ## [Phase 1 MVP] - 2025-11-22
 
 ### Added
