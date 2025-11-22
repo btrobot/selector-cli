@@ -61,6 +61,14 @@ class Parser:
             return self._parse_set(command_str)
         elif verb_token.type == TokenType.VARS:
             return self._parse_vars(command_str)
+        elif verb_token.type == TokenType.MACRO:
+            return self._parse_macro(command_str)
+        elif verb_token.type == TokenType.RUN:
+            return self._parse_run(command_str)
+        elif verb_token.type == TokenType.MACROS:
+            return self._parse_macros(command_str)
+        elif verb_token.type == TokenType.EXEC:
+            return self._parse_exec(command_str)
         elif verb_token.type in (TokenType.QUIT, TokenType.EXIT):
             return Command(verb='quit', raw=command_str)
         elif verb_token.type == TokenType.HELP:
@@ -291,6 +299,79 @@ class Parser:
         """Parse: vars"""
         self._consume(TokenType.VARS)
         return Command(verb='vars', raw=raw)
+
+    def _parse_macro(self, raw: str) -> Command:
+        """Parse: macro <name> <command>"""
+        self._consume(TokenType.MACRO)
+
+        # Get macro name
+        name_token = self._current_token()
+        if name_token.type != TokenType.IDENTIFIER:
+            raise ValueError("Expected macro name after 'macro'")
+        macro_name = name_token.value
+        self._advance()
+
+        # Get rest of line as macro command (preserve original)
+        # Find position after macro name in original string
+        macro_prefix = f"macro {macro_name}"
+        macro_start = raw.find(macro_prefix)
+        if macro_start >= 0:
+            macro_command = raw[macro_start + len(macro_prefix):].strip()
+        else:
+            # Fallback: reconstruct from tokens
+            command_parts = []
+            while self._current_token().type != TokenType.EOF:
+                token = self._current_token()
+                # Preserve quotes for strings
+                if token.type == TokenType.STRING:
+                    command_parts.append(f'"{token.value}"')
+                else:
+                    command_parts.append(token.value)
+                self._advance()
+            macro_command = " ".join(command_parts)
+
+        if not macro_command:
+            raise ValueError("Macro must contain at least one command")
+
+        # Store as "name:command" in argument
+        return Command(verb='macro', argument=f"{macro_name}:{macro_command}", raw=raw)
+
+    def _parse_run(self, raw: str) -> Command:
+        """Parse: run <macro_name>"""
+        self._consume(TokenType.RUN)
+
+        # Get macro name
+        name_token = self._current_token()
+        if name_token.type != TokenType.IDENTIFIER:
+            raise ValueError("Expected macro name after 'run'")
+        macro_name = name_token.value
+        self._advance()
+
+        return Command(verb='run', argument=macro_name, raw=raw)
+
+    def _parse_macros(self, raw: str) -> Command:
+        """Parse: macros"""
+        self._consume(TokenType.MACROS)
+        return Command(verb='macros', raw=raw)
+
+    def _parse_exec(self, raw: str) -> Command:
+        """Parse: exec <filepath>"""
+        self._consume(TokenType.EXEC)
+
+        # Get filepath (could be string or identifier)
+        filepath_token = self._current_token()
+        if filepath_token.type in (TokenType.STRING, TokenType.IDENTIFIER):
+            filepath = filepath_token.value
+            self._advance()
+
+            # Continue reading to get full path
+            while self._current_token().type not in (TokenType.EOF,):
+                filepath += self._current_token().value
+                self._advance()
+        else:
+            raise ValueError("Expected filepath after 'exec'")
+
+        return Command(verb='exec', argument=filepath, raw=raw)
 
 
     def _parse_target(self) -> Target:

@@ -2,6 +2,64 @@
 
 All notable changes to Selector CLI will be documented in this file.
 
+## [Phase 4 Extended Complete] - 2025-11-23
+
+### Added - Macro System and Script Execution
+- **Macro System**:
+  - `macro <name> <command>` - Define a macro
+  - `run <name>` - Execute a macro
+  - `macros` - List all defined macros
+- **Script Execution**:
+  - `exec <filepath>` - Execute script file (.sel format)
+  - Support for comments (#) and empty lines
+  - Line-by-line execution with error reporting
+- **XPath Generation**:
+  - Automatic XPath calculation during scan
+  - ID-based XPath when available
+  - Path-based XPath as fallback
+
+### Usage Examples
+```bash
+# Define and run macros
+macro analyze_inputs add input
+run analyze_inputs
+
+# Complex macro
+macro login_flow add input where type="email"
+run login_flow
+
+# Execute script file
+exec analyze.sel
+
+# Script file format (.sel):
+# analyze.sel
+open https://example.com
+scan
+add input
+add button
+list
+```
+
+### Technical Details
+**New Components**:
+- `src/core/macro.py` - MacroManager class
+- `PHASE4_EXTENDED_GRAMMAR.md` - Complete grammar specification
+
+**Modified Files**:
+- `src/parser/lexer.py` - Added MACRO/RUN/MACROS/EXEC tokens, LBRACE/RBRACE
+- `src/parser/parser.py` - Added macro and exec command parsing
+- `src/commands/executor.py` - Added macro and script execution
+- `src/core/context.py` - Added MacroManager integration
+- `src/core/scanner.py` - Added XPath generation
+
+**Tests**:
+- `tests/test_macro_script.py` - 5 test suites (all passing)
+- `tests/test_xpath.py` - XPath generation tests
+
+**Lines Added**: ~450 lines
+
+---
+
 ## [Phase 4 Complete] - 2025-11-23
 
 ### Added - Persistence and Variables

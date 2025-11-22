@@ -6,6 +6,7 @@ from datetime import datetime
 from src.core.element import Element
 from src.core.collection import ElementCollection
 from src.core.browser import BrowserManager
+from src.core.macro import MacroManager
 
 
 class Context:
@@ -24,7 +25,7 @@ class Context:
         self.variables: Dict[str, Any] = {}
 
         # Macros
-        self.macros: Dict[str, Any] = {}
+        self.macro_manager = MacroManager()
 
         # History
         self.history: List[str] = []

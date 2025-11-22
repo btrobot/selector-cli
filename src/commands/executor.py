@@ -6,6 +6,7 @@ from src.parser.command import (
     Command, TargetType, Operator,
     ConditionNode, ConditionType, LogicOp  # Phase 2
 )
+from src.parser.parser import Parser  # For parsing macro commands
 from src.core.context import Context
 from src.core.scanner import ElementScanner
 from src.core.storage import StorageManager  # Phase 4
@@ -22,6 +23,7 @@ class CommandExecutor:
     def __init__(self):
         self.scanner = ElementScanner()
         self.storage = StorageManager()  # Phase 4
+        self.parser = Parser()  # For parsing macro commands
 
     async def execute(self, command: Command, context: Context) -> str:
         """Execute command and return result message"""
@@ -56,6 +58,14 @@ class CommandExecutor:
             return await self._execute_set(command, context)
         elif command.verb == 'vars':
             return await self._execute_vars(command, context)
+        elif command.verb == 'macro':
+            return await self._execute_macro(command, context)
+        elif command.verb == 'run':
+            return await self._execute_run(command, context)
+        elif command.verb == 'macros':
+            return await self._execute_macros(command, context)
+        elif command.verb == 'exec':
+            return await self._execute_exec(command, context)
         elif command.verb == 'help':
             return await self._execute_help(command, context)
         else:
@@ -384,6 +394,109 @@ class CommandExecutor:
             lines.append(f"  {name} = {value} ({value_type})")
 
         return "\n".join(lines)
+
+    async def _execute_macro(self, command: Command, context: Context) -> str:
+        """Execute macro command - define a macro"""
+        if not command.argument:
+            return "Error: No macro specified"
+
+        # Parse "name:command" format
+        if ':' not in command.argument:
+            return "Error: Invalid macro format"
+
+        name, macro_command = command.argument.split(':', 1)
+        name = name.strip()
+        macro_command = macro_command.strip()
+
+        # Define macro (single command for now)
+        try:
+            context.macro_manager.define(name, [macro_command])
+            return f"Macro '{name}' defined"
+        except Exception as e:
+            return f"Error defining macro: {e}"
+
+    async def _execute_run(self, command: Command, context: Context) -> str:
+        """Execute run command - run a macro"""
+        if not command.argument:
+            return "Error: No macro name specified"
+
+        macro_name = command.argument
+
+        try:
+            # Get macro commands
+            commands = context.macro_manager.get(macro_name)
+
+            # Execute each command
+            results = []
+            for cmd_str in commands:
+                # Parse and execute command
+                try:
+                    cmd = self.parser.parse(cmd_str)
+                    result = await self.execute(cmd, context)
+                    results.append(result)
+                except Exception as e:
+                    return f"Error in macro '{macro_name}': {e}\nCommand: {cmd_str}"
+
+            return "\n".join(results)
+
+        except KeyError:
+            return f"Error: Macro '{macro_name}' not found"
+        except Exception as e:
+            return f"Error running macro: {e}"
+
+    async def _execute_macros(self, command: Command, context: Context) -> str:
+        """Execute macros command - list all macros"""
+        macros = context.macro_manager.list_all()
+
+        if not macros:
+            return "No macros defined"
+
+        lines = ["Macros:"]
+        for name, commands in macros.items():
+            cmd_text = "; ".join(commands)
+            lines.append(f"  {name}: {cmd_text}")
+
+        return "\n".join(lines)
+
+    async def _execute_exec(self, command: Command, context: Context) -> str:
+        """Execute exec command - run script file"""
+        if not command.argument:
+            return "Error: No filepath specified"
+
+        filepath = command.argument
+
+        try:
+            # Read script file
+            with open(filepath, 'r', encoding='utf-8') as f:
+                script_lines = f.readlines()
+
+            # Execute each line
+            results = []
+            line_num = 0
+
+            for line in script_lines:
+                line_num += 1
+                line = line.strip()
+
+                # Skip empty lines and comments
+                if not line or line.startswith('#'):
+                    continue
+
+                try:
+                    # Parse and execute command
+                    cmd = self.parser.parse(line)
+                    result = await self.execute(cmd, context)
+                    if result and result.strip():
+                        results.append(f"[{line_num}] {result}")
+                except Exception as e:
+                    return f"Error at line {line_num}: {e}\nCommand: {line}"
+
+            return "\n".join(results) if results else f"Executed {filepath}"
+
+        except FileNotFoundError:
+            return f"Error: File '{filepath}' not found"
+        except Exception as e:
+            return f"Error executing script: {e}"
 
     async def _execute_help(self, command: Command, context: Context) -> str:
         """Execute help command"""

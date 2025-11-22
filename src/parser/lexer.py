@@ -30,6 +30,10 @@ class TokenType(Enum):
     DELETE = auto()
     SET = auto()
     VARS = auto()
+    MACRO = auto()
+    RUN = auto()
+    MACROS = auto()
+    EXEC = auto()
 
     # Element types
     INPUT = auto()
@@ -75,6 +79,8 @@ class TokenType(Enum):
     RPAREN = auto()     # )
     LBRACKET = auto()   # [
     RBRACKET = auto()   # ]
+    LBRACE = auto()     # {
+    RBRACE = auto()     # }
     COMMA = auto()      # ,
     DASH = auto()       # -
 
@@ -119,6 +125,10 @@ class Lexer:
         'delete': TokenType.DELETE,
         'set': TokenType.SET,
         'vars': TokenType.VARS,
+        'macro': TokenType.MACRO,
+        'run': TokenType.RUN,
+        'macros': TokenType.MACROS,
+        'exec': TokenType.EXEC,
 
         # Element types
         'input': TokenType.INPUT,
@@ -242,6 +252,18 @@ class Lexer:
             # Right bracket
             if self._current_char() == ']':
                 tokens.append(Token(TokenType.RBRACKET, ']', self.position))
+                self.position += 1
+                continue
+
+            # Left brace
+            if self._current_char() == '{':
+                tokens.append(Token(TokenType.LBRACE, '{', self.position))
+                self.position += 1
+                continue
+
+            # Right brace
+            if self._current_char() == '}':
+                tokens.append(Token(TokenType.RBRACE, '}', self.position))
                 self.position += 1
                 continue
 
