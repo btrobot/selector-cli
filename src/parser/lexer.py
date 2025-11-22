@@ -21,6 +21,7 @@ class TokenType(Enum):
     QUIT = auto()
     EXIT = auto()
     HELP = auto()
+    EXPORT = auto()  # Phase 3
 
     # Element types
     INPUT = auto()
@@ -30,10 +31,18 @@ class TokenType(Enum):
     LINK = auto()
     ALL = auto()
 
+    # Export formats (Phase 3)
+    PLAYWRIGHT = auto()
+    SELENIUM = auto()
+    PUPPETEER = auto()
+    JSON = auto()
+    CSV = auto()
+    YAML = auto()
+
     # Operators
     EQUALS = auto()
     NOT_EQUALS = auto()
-    GT = auto()         # >
+    GT = auto()         # > (also used for file redirection)
     GTE = auto()        # >=
     LT = auto()         # <
     LTE = auto()        # <=
@@ -93,6 +102,7 @@ class Lexer:
         'exit': TokenType.EXIT,
         'q': TokenType.QUIT,
         'help': TokenType.HELP,
+        'export': TokenType.EXPORT,  # Phase 3
 
         # Element types
         'input': TokenType.INPUT,
@@ -100,9 +110,18 @@ class Lexer:
         'select': TokenType.SELECT,
         'textarea': TokenType.TEXTAREA,
         'a': TokenType.LINK,
+        'link': TokenType.LINK,
         'all': TokenType.ALL,
 
-        # Logic operators
+        # Export formats (Phase 3)
+        'playwright': TokenType.PLAYWRIGHT,
+        'selenium': TokenType.SELENIUM,
+        'puppeteer': TokenType.PUPPETEER,
+        'json': TokenType.JSON,
+        'csv': TokenType.CSV,
+        'yaml': TokenType.YAML,
+
+        # Logical operators
         'and': TokenType.AND,
         'or': TokenType.OR,
         'not': TokenType.NOT,

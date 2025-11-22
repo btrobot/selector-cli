@@ -47,6 +47,8 @@ class Parser:
             return self._parse_show(command_str)
         elif verb_token.type == TokenType.COUNT:
             return self._parse_count(command_str)
+        elif verb_token.type == TokenType.EXPORT:
+            return self._parse_export(command_str)
         elif verb_token.type in (TokenType.QUIT, TokenType.EXIT):
             return Command(verb='quit', raw=command_str)
         elif verb_token.type == TokenType.HELP:
@@ -154,6 +156,56 @@ class Parser:
         """Parse: help"""
         self._consume(TokenType.HELP)
         return Command(verb='help', raw=raw)
+
+    def _parse_export(self, raw: str) -> Command:
+        """Parse: export <format> [> <filename>]"""
+        self._consume(TokenType.EXPORT)
+
+        # Get format
+        format_token = self._current_token()
+        valid_formats = (
+            TokenType.PLAYWRIGHT, TokenType.SELENIUM, TokenType.PUPPETEER,
+            TokenType.JSON, TokenType.CSV, TokenType.YAML
+        )
+
+        if format_token.type not in valid_formats:
+            raise ValueError(
+                f"Expected export format (playwright/selenium/puppeteer/json/csv/yaml), "
+                f"got {format_token.value}"
+            )
+
+        export_format = format_token.value
+        self._advance()
+
+        # Check for file redirection: > filename
+        filename = None
+        if self._current_token().type == TokenType.GT:
+            self._consume(TokenType.GT)
+
+            # Get filename
+            filename_token = self._current_token()
+            if filename_token.type in (TokenType.IDENTIFIER, TokenType.STRING):
+                filename = filename_token.value
+                self._advance()
+
+                # Continue reading to get full filename (may have dots, paths, etc.)
+                while self._current_token().type not in (TokenType.EOF,):
+                    if self._current_token().value in (' ', '\t'):
+                        self._advance()
+                        break
+                    filename += self._current_token().value
+                    self._advance()
+            else:
+                raise ValueError("Expected filename after '>'")
+
+        # Store format and filename as argument (format:filename or just format)
+        if filename:
+            argument = f"{export_format}:{filename}"
+        else:
+            argument = export_format
+
+        return Command(verb='export', argument=argument, raw=raw)
+
 
     def _parse_target(self) -> Target:
         """Parse target: element_type | [indices/range] | all"""

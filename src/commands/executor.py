@@ -8,6 +8,11 @@ from src.parser.command import (
 )
 from src.core.context import Context
 from src.core.scanner import ElementScanner
+# Phase 3: Import generators
+from src.generators import (
+    PlaywrightGenerator, SeleniumGenerator, PuppeteerGenerator,
+    JSONExporter, CSVExporter, YAMLExporter
+)
 
 
 class CommandExecutor:
@@ -35,6 +40,8 @@ class CommandExecutor:
             return await self._execute_show(command, context)
         elif command.verb == 'count':
             return await self._execute_count(command, context)
+        elif command.verb == 'export':
+            return await self._execute_export(command, context)
         elif command.verb == 'help':
             return await self._execute_help(command, context)
         else:
@@ -192,6 +199,53 @@ class CommandExecutor:
     async def _execute_count(self, command: Command, context: Context) -> str:
         """Execute count command"""
         return f"Collection contains {context.collection.count()} element(s)"
+
+    async def _execute_export(self, command: Command, context: Context) -> str:
+        """Execute export command"""
+        if not command.argument:
+            return "Error: No export format specified"
+
+        # Parse argument: format or format:filename
+        parts = command.argument.split(':', 1)
+        export_format = parts[0]
+        filename = parts[1] if len(parts) > 1 else None
+
+        # Get elements to export (collection)
+        elements = list(context.collection.elements)
+        if not elements:
+            return "Error: Collection is empty. Add elements before exporting."
+
+        # Get URL
+        url = context.current_url if context.current_url else None
+
+        # Select appropriate generator
+        generator_map = {
+            'playwright': PlaywrightGenerator(),
+            'selenium': SeleniumGenerator(),
+            'puppeteer': PuppeteerGenerator(),
+            'json': JSONExporter(),
+            'csv': CSVExporter(),
+            'yaml': YAMLExporter(),
+        }
+
+        generator = generator_map.get(export_format)
+        if not generator:
+            return f"Error: Unknown export format '{export_format}'"
+
+        # Generate code/data
+        output = generator.generate(elements, url)
+
+        # Write to file or return output
+        if filename:
+            try:
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(output)
+                return f"Exported {len(elements)} element(s) to '{filename}' ({export_format} format)"
+            except Exception as e:
+                return f"Error writing to file '{filename}': {e}"
+        else:
+            # Return output directly (will be printed to console)
+            return f"# Export: {export_format}\n\n{output}"
 
     async def _execute_help(self, command: Command, context: Context) -> str:
         """Execute help command"""
