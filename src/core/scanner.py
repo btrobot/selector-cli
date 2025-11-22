@@ -74,6 +74,9 @@ class ElementScanner:
         # Build selector
         selector = self._build_selector(tag, attributes)
 
+        # Build xpath
+        xpath = await self._build_xpath(locator)
+
         # State
         try:
             visible = await locator.is_visible() if await locator.count() > 0 else False
@@ -97,6 +100,7 @@ class ElementScanner:
             classes=classes,
             placeholder=placeholder,
             selector=selector,
+            xpath=xpath,
             visible=visible,
             enabled=enabled,
             disabled=disabled,
@@ -126,3 +130,39 @@ class ElementScanner:
             selector += f'[placeholder="{placeholder}"]'
 
         return selector
+
+    async def _build_xpath(self, locator) -> str:
+        """Build XPath for element using JavaScript"""
+        try:
+            # Execute JavaScript to get XPath
+            xpath = await locator.evaluate("""
+                (element) => {
+                    function getXPath(node) {
+                        if (node.id) {
+                            return `//*[@id="${node.id}"]`;
+                        }
+
+                        if (node === document.body) {
+                            return '/html/body';
+                        }
+
+                        let ix = 0;
+                        const siblings = node.parentNode ? node.parentNode.childNodes : [];
+
+                        for (let i = 0; i < siblings.length; i++) {
+                            const sibling = siblings[i];
+                            if (sibling === node) {
+                                const tagName = node.tagName.toLowerCase();
+                                return getXPath(node.parentNode) + '/' + tagName + '[' + (ix + 1) + ']';
+                            }
+                            if (sibling.nodeType === 1 && sibling.tagName === node.tagName) {
+                                ix++;
+                            }
+                        }
+                    }
+                    return getXPath(element);
+                }
+            """)
+            return xpath if xpath else ""
+        except Exception:
+            return ""
