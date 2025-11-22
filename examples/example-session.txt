@@ -1,0 +1,37 @@
+# Selector CLI - Example Session
+
+# This is an example of how to use Selector CLI
+# Start the CLI with: python selector-cli.py
+
+# 1. Open a webpage
+open https://www.google.com
+
+# 2. Scan for elements
+scan
+
+# 3. List all elements
+list
+
+# 4. Add all input elements to collection
+add input
+
+# 5. Add all buttons
+add button
+
+# 6. List what's in the collection
+list
+
+# 7. Show details of first element
+show [0]
+
+# 8. Filter by attribute
+add input where type="text"
+
+# 9. Count collection
+count
+
+# 10. Clear collection
+clear
+
+# 11. Exit
+quit
