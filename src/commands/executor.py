@@ -1,8 +1,11 @@
 """
 Command executor for Selector CLI
 """
-from typing import Optional
-from src.parser.command import Command, TargetType, Operator
+from typing import Optional, Any
+from src.parser.command import (
+    Command, TargetType, Operator,
+    ConditionNode, ConditionType, LogicOp  # Phase 2
+)
 from src.core.context import Context
 from src.core.scanner import ElementScanner
 
@@ -60,7 +63,12 @@ class CommandExecutor:
             context.collection.clear()
             context.last_scan_time = None
 
-            return f"Opened: {url}"
+            # Auto-scan after opening page
+            page = context.browser.get_page()
+            elements = await self.scanner.scan(page)
+            context.update_elements(elements)
+
+            return f"Opened: {url}\nAuto-scanned {len(elements)} elements"
         else:
             return f"Failed to open: {url}"
 
@@ -83,8 +91,10 @@ class CommandExecutor:
         # Get elements to add based on target
         elements_to_add = self._resolve_target(command.target, context)
 
-        # Apply condition if present
-        if command.condition:
+        # Apply condition if present (Phase 2 or Phase 1)
+        if command.condition_tree:
+            elements_to_add = self._filter_by_condition_tree(elements_to_add, command.condition_tree)
+        elif command.condition:
             elements_to_add = self._filter_by_condition(elements_to_add, command.condition)
 
         # Add to collection
@@ -104,8 +114,10 @@ class CommandExecutor:
         # Get elements to remove
         elements_to_remove = self._resolve_target(command.target, context)
 
-        # Apply condition if present
-        if command.condition:
+        # Apply condition if present (Phase 2 or Phase 1)
+        if command.condition_tree:
+            elements_to_remove = self._filter_by_condition_tree(elements_to_remove, command.condition_tree)
+        elif command.condition:
             elements_to_remove = self._filter_by_condition(elements_to_remove, command.condition)
 
         # Remove from collection
@@ -132,8 +144,10 @@ class CommandExecutor:
             # List collection if no target
             elements = list(context.collection.elements)
 
-        # Apply condition if present
-        if command.condition:
+        # Apply condition if present (Phase 2 or Phase 1)
+        if command.condition_tree:
+            elements = self._filter_by_condition_tree(elements, command.condition_tree)
+        elif command.condition:
             elements = self._filter_by_condition(elements, command.condition)
 
         # Format output
@@ -259,7 +273,7 @@ Examples:
         return result
 
     def _evaluate_condition(self, elem, condition) -> bool:
-        """Evaluate if element matches condition"""
+        """Evaluate if element matches condition (Phase 1)"""
         # Get field value
         field_value = getattr(elem, condition.field, None)
         if field_value is None:
@@ -272,3 +286,100 @@ Examples:
             return str(field_value) != str(condition.value)
 
         return False
+
+    # ========== Phase 2: Complex Condition Evaluation ==========
+
+    def _filter_by_condition_tree(self, elements, condition_tree: ConditionNode):
+        """Filter elements by condition tree (Phase 2)"""
+        result = []
+        for elem in elements:
+            if self._evaluate_condition_tree(elem, condition_tree):
+                result.append(elem)
+        return result
+
+    def _evaluate_condition_tree(self, elem, condition: ConditionNode) -> bool:
+        """Evaluate complex condition tree recursively"""
+
+        if condition.type == ConditionType.SIMPLE:
+            return self._evaluate_simple_condition(elem, condition)
+
+        elif condition.type == ConditionType.COMPOUND:
+            left_result = self._evaluate_condition_tree(elem, condition.left)
+            right_result = self._evaluate_condition_tree(elem, condition.right)
+
+            if condition.logic_op == LogicOp.AND:
+                return left_result and right_result
+            elif condition.logic_op == LogicOp.OR:
+                return left_result or right_result
+
+        elif condition.type == ConditionType.UNARY:
+            operand_result = self._evaluate_condition_tree(elem, condition.operand)
+            return not operand_result
+
+        return False
+
+    def _evaluate_simple_condition(self, elem, condition: ConditionNode) -> bool:
+        """Evaluate simple condition with Phase 2 operators"""
+        # Get field value
+        field_value = self._get_field_value(elem, condition.field)
+        compare_value = condition.value
+        operator = condition.operator
+
+        # Comparison operators
+        if operator == Operator.EQUALS:
+            return str(field_value) == str(compare_value)
+        elif operator == Operator.NOT_EQUALS:
+            return str(field_value) != str(compare_value)
+        elif operator == Operator.GT:
+            return self._to_number(field_value) > self._to_number(compare_value)
+        elif operator == Operator.GTE:
+            return self._to_number(field_value) >= self._to_number(compare_value)
+        elif operator == Operator.LT:
+            return self._to_number(field_value) < self._to_number(compare_value)
+        elif operator == Operator.LTE:
+            return self._to_number(field_value) <= self._to_number(compare_value)
+
+        # String operators
+        elif operator == Operator.CONTAINS:
+            return str(compare_value) in str(field_value)
+        elif operator == Operator.STARTS:
+            return str(field_value).startswith(str(compare_value))
+        elif operator == Operator.ENDS:
+            return str(field_value).endswith(str(compare_value))
+        elif operator == Operator.MATCHES:
+            import re
+            return bool(re.search(str(compare_value), str(field_value)))
+
+        return False
+
+    def _get_field_value(self, elem, field: str) -> Any:
+        """Get field value from element"""
+        # Direct attribute
+        if hasattr(elem, field):
+            return getattr(elem, field)
+
+        # From attributes dict
+        if field in elem.attributes:
+            return elem.attributes[field]
+
+        # Boolean fields (treat as boolean if field name is a boolean keyword)
+        if field in ['visible', 'enabled', 'disabled', 'required', 'readonly']:
+            if field == 'visible':
+                return elem.visible if hasattr(elem, 'visible') else True
+            elif field == 'enabled':
+                return elem.enabled if hasattr(elem, 'enabled') else True
+            elif field == 'disabled':
+                return elem.disabled if hasattr(elem, 'disabled') else False
+            elif field == 'required':
+                return elem.required if hasattr(elem, 'required') else False
+            elif field == 'readonly':
+                return elem.readonly if hasattr(elem, 'readonly') else False
+
+        return ""
+
+    def _to_number(self, value: Any) -> float:
+        """Convert value to number for comparison"""
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return 0.0

@@ -2,7 +2,90 @@
 
 All notable changes to Selector CLI will be documented in this file.
 
-## [Phase 2 WIP] - 2025-11-22 (In Progress)
+## [Unreleased] - 2025-11-23
+
+### Changed
+- **Auto-scan after open** - `open` command now automatically scans the page after loading
+  - No need to manually run `scan` after opening a URL
+  - Returns: "Opened: {url}\nAuto-scanned {N} elements"
+  - User can still manually run `scan` to re-scan if needed
+
+---
+
+## [Phase 2 Complete] - 2025-11-23
+
+### Added - Enhanced Filtering (Phase 2)
+- **Complex WHERE clause support**
+  - Logical operators: `and`, `or`, `not`
+  - Parentheses for grouping: `(condition) and condition`
+  - Operator precedence: Parentheses > NOT > AND > OR
+- **Comparison operators** for numeric fields
+  - Greater than: `>`
+  - Greater than or equal: `>=`
+  - Less than: `<`
+  - Less than or equal: `<=`
+- **String matching operators**
+  - Contains: `text contains "Submit"`
+  - Starts with: `id starts "user_"`
+  - Ends with: `name ends "_input"`
+  - Regex match: `text matches "[0-9]+"`
+- **Range selection** for indices
+  - Simple range: `[1-10]` expands to [1,2,3,4,5,6,7,8,9,10]
+  - Mixed notation: `[1,3,5-8,10]`
+- **Boolean field support**
+  - Standalone fields: `where visible` (implies = true)
+  - Explicit: `where disabled = false`
+
+### Changed
+- **Parser** - Implemented recursive descent parser with operator precedence
+- **Executor** - Added condition tree evaluator with recursive evaluation
+- **Backward compatibility** - Phase 1 simple conditions still work
+
+### Tests
+- ✅ Parser tests (22 test cases) - `test_phase2_parser.py`
+- ✅ Integration tests (7 test suites) - `test_phase2_integration.py`
+- ✅ Lexer tests - `test_phase2_lexer.py`
+- ✅ Phase 1 compatibility tests - `test_mvp.py`
+
+### Examples
+```
+# Complex conditions with AND/OR/NOT
+add input where (type="text" or type="email") and not disabled
+
+# Numeric comparisons
+list where index > 5 and index < 20
+
+# String matching
+add button where text contains "Submit"
+add input where id starts "user_"
+add input where name ends "_input"
+
+# Range selection
+add [1-10]
+add [1,3,5-8,10]
+
+# Boolean fields
+add input where visible
+add button where not disabled
+```
+
+### Technical Details
+**Files Modified**:
+- `src/parser/lexer.py` - Added 14 new token types
+- `src/parser/command.py` - Added ConditionNode tree structure
+- `src/parser/parser.py` - Complete rewrite with recursive descent parser (395 lines)
+- `src/commands/executor.py` - Added condition tree evaluator (381 lines)
+
+**New Files**:
+- `tests/test_phase2_parser.py` (219 lines)
+- `tests/test_phase2_integration.py` (410 lines)
+- `tests/test_phase2_lexer.py` (134 lines)
+
+**Lines Added**: ~1,000 lines
+
+---
+
+## [Phase 2 WIP] - 2025-11-22 (Superseded by completion above)
 
 ### Added
 - **Lexer enhancements** for Phase 2 features

@@ -1,9 +1,13 @@
 """
-Parser for Selector CLI (Phase 1)
+Parser for Selector CLI (Phase 2)
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 from src.parser.lexer import Lexer, Token, TokenType
-from src.parser.command import Command, Target, TargetType, Condition, Operator
+from src.parser.command import (
+    Command, Target, TargetType,
+    Condition, Operator,  # Phase 1
+    ConditionNode, ConditionType, LogicOp  # Phase 2
+)
 
 
 class Parser:
@@ -84,12 +88,12 @@ class Parser:
         # Parse target
         target = self._parse_target()
 
-        # Parse optional WHERE clause
-        condition = None
+        # Parse optional WHERE clause (Phase 2 - complex conditions)
+        condition_tree = None
         if self._current_token().type == TokenType.WHERE:
-            condition = self._parse_where_clause()
+            condition_tree = self._parse_where_clause_v2()
 
-        return Command(verb='add', target=target, condition=condition, raw=raw)
+        return Command(verb='add', target=target, condition_tree=condition_tree, raw=raw)
 
     def _parse_remove(self, raw: str) -> Command:
         """Parse: remove <target> [where <condition>]"""
@@ -98,12 +102,12 @@ class Parser:
         # Parse target
         target = self._parse_target()
 
-        # Parse optional WHERE clause
-        condition = None
+        # Parse optional WHERE clause (Phase 2)
+        condition_tree = None
         if self._current_token().type == TokenType.WHERE:
-            condition = self._parse_where_clause()
+            condition_tree = self._parse_where_clause_v2()
 
-        return Command(verb='remove', target=target, condition=condition, raw=raw)
+        return Command(verb='remove', target=target, condition_tree=condition_tree, raw=raw)
 
     def _parse_clear(self, raw: str) -> Command:
         """Parse: clear"""
@@ -123,12 +127,12 @@ class Parser:
         ):
             target = self._parse_target()
 
-        # Optional WHERE clause
-        condition = None
+        # Optional WHERE clause (Phase 2)
+        condition_tree = None
         if self._current_token().type == TokenType.WHERE:
-            condition = self._parse_where_clause()
+            condition_tree = self._parse_where_clause_v2()
 
-        return Command(verb='list', target=target, condition=condition, raw=raw)
+        return Command(verb='list', target=target, condition_tree=condition_tree, raw=raw)
 
     def _parse_show(self, raw: str) -> Command:
         """Parse: show [<target>]"""
@@ -152,7 +156,7 @@ class Parser:
         return Command(verb='help', raw=raw)
 
     def _parse_target(self) -> Target:
-        """Parse target: element_type | [n] | [n,m,...] | all"""
+        """Parse target: element_type | [indices/range] | all"""
         current = self._current_token()
 
         # Element type
@@ -169,22 +173,35 @@ class Parser:
             self._advance()
             return Target(type=TargetType.ALL)
 
-        # Index or indices
+        # Index, indices, or range: [n], [n,m,...], [n-m], [n,m-p,q]
         if current.type == TokenType.LBRACKET:
             self._consume(TokenType.LBRACKET)
 
             indices = []
-            # Read first number
-            if self._current_token().type == TokenType.NUMBER:
-                indices.append(int(self._current_token().value))
-                self._advance()
 
-                # Check for more indices
-                while self._current_token().type == TokenType.COMMA:
-                    self._consume(TokenType.COMMA)
-                    if self._current_token().type == TokenType.NUMBER:
-                        indices.append(int(self._current_token().value))
-                        self._advance()
+            while self._current_token().type != TokenType.RBRACKET:
+                # Parse number
+                if self._current_token().type == TokenType.NUMBER:
+                    start = int(self._current_token().value)
+                    self._advance()
+
+                    # Check for range (dash)
+                    if self._current_token().type == TokenType.DASH:
+                        self._consume(TokenType.DASH)
+                        if self._current_token().type == TokenType.NUMBER:
+                            end = int(self._current_token().value)
+                            self._advance()
+                            # Expand range to indices
+                            indices.extend(range(start, end + 1))
+                        else:
+                            raise ValueError("Expected number after -")
+                    else:
+                        # Single index
+                        indices.append(start)
+
+                    # Check for comma
+                    if self._current_token().type == TokenType.COMMA:
+                        self._consume(TokenType.COMMA)
 
             self._consume(TokenType.RBRACKET)
 
@@ -195,39 +212,167 @@ class Parser:
 
         raise ValueError(f"Expected target, got {current.type}")
 
-    def _parse_where_clause(self) -> Condition:
-        """Parse: where <field> <op> <value>"""
-        self._consume(TokenType.WHERE)
+    # ========== Phase 2: Complex WHERE Clause Parsing ==========
 
-        # Field (identifier)
+    def _parse_where_clause_v2(self) -> ConditionNode:
+        """Parse complex WHERE clause with and/or/not and parentheses
+
+        Grammar (with operator precedence):
+            condition = or_condition
+            or_condition = and_condition ('or' and_condition)*
+            and_condition = not_condition ('and' not_condition)*
+            not_condition = 'not' not_condition | primary_condition
+            primary_condition = '(' condition ')' | simple_condition
+
+        Operator precedence (high to low):
+            1. Parentheses ()
+            2. NOT
+            3. AND
+            4. OR
+        """
+        self._consume(TokenType.WHERE)
+        return self._parse_or_condition()
+
+    def _parse_or_condition(self) -> ConditionNode:
+        """Parse OR expressions (lowest precedence)"""
+        left = self._parse_and_condition()
+
+        while self._current_token().type == TokenType.OR:
+            self._advance()
+            right = self._parse_and_condition()
+            left = ConditionNode(
+                type=ConditionType.COMPOUND,
+                left=left,
+                right=right,
+                logic_op=LogicOp.OR
+            )
+
+        return left
+
+    def _parse_and_condition(self) -> ConditionNode:
+        """Parse AND expressions (higher precedence than OR)"""
+        left = self._parse_not_condition()
+
+        while self._current_token().type == TokenType.AND:
+            self._advance()
+            right = self._parse_not_condition()
+            left = ConditionNode(
+                type=ConditionType.COMPOUND,
+                left=left,
+                right=right,
+                logic_op=LogicOp.AND
+            )
+
+        return left
+
+    def _parse_not_condition(self) -> ConditionNode:
+        """Parse NOT expressions (highest precedence among logic ops)"""
+        if self._current_token().type == TokenType.NOT:
+            self._advance()
+            operand = self._parse_not_condition()  # Right associative
+            return ConditionNode(
+                type=ConditionType.UNARY,
+                operand=operand
+            )
+
+        return self._parse_primary_condition()
+
+    def _parse_primary_condition(self) -> ConditionNode:
+        """Parse primary condition (parentheses or simple)"""
+        # Parentheses
+        if self._current_token().type == TokenType.LPAREN:
+            self._consume(TokenType.LPAREN)
+            condition = self._parse_or_condition()  # Recurse from top
+            self._consume(TokenType.RPAREN)
+            return condition
+
+        # Simple condition
+        return self._parse_simple_condition()
+
+    def _parse_simple_condition(self) -> ConditionNode:
+        """Parse simple condition: field operator value OR just field (for booleans)"""
+        # Field
         if self._current_token().type != TokenType.IDENTIFIER:
             raise ValueError("Expected field name in WHERE clause")
         field = self._current_token().value
         self._advance()
 
-        # Operator
+        # Check if there's an operator or if it's a standalone boolean field
         op_token = self._current_token()
-        if op_token.type == TokenType.EQUALS:
-            operator = Operator.EQUALS
-        elif op_token.type == TokenType.NOT_EQUALS:
-            operator = Operator.NOT_EQUALS
-        else:
-            raise ValueError(f"Expected operator, got {op_token.type}")
+
+        # If no operator (boolean field like "visible" or "disabled")
+        if op_token.type not in (
+            TokenType.EQUALS, TokenType.NOT_EQUALS,
+            TokenType.GT, TokenType.GTE, TokenType.LT, TokenType.LTE,
+            TokenType.CONTAINS, TokenType.STARTS, TokenType.ENDS, TokenType.MATCHES
+        ):
+            # Treat as boolean field (field = true)
+            return ConditionNode(
+                type=ConditionType.SIMPLE,
+                field=field,
+                operator=Operator.EQUALS,
+                value=True
+            )
+
+        # Operator
+        operator = self._token_to_operator(op_token)
         self._advance()
 
         # Value
-        value_token = self._current_token()
-        if value_token.type == TokenType.STRING:
-            value = value_token.value
-        elif value_token.type == TokenType.NUMBER:
-            value = int(value_token.value)
-        elif value_token.type == TokenType.IDENTIFIER:
-            value = value_token.value
-        else:
-            raise ValueError(f"Expected value, got {value_token.type}")
-        self._advance()
+        value = self._parse_value()
 
-        return Condition(field=field, operator=operator, value=value)
+        return ConditionNode(
+            type=ConditionType.SIMPLE,
+            field=field,
+            operator=operator,
+            value=value
+        )
+
+    def _token_to_operator(self, token: Token) -> Operator:
+        """Convert token to Operator enum"""
+        mapping = {
+            TokenType.EQUALS: Operator.EQUALS,
+            TokenType.NOT_EQUALS: Operator.NOT_EQUALS,
+            TokenType.GT: Operator.GT,
+            TokenType.GTE: Operator.GTE,
+            TokenType.LT: Operator.LT,
+            TokenType.LTE: Operator.LTE,
+            TokenType.CONTAINS: Operator.CONTAINS,
+            TokenType.STARTS: Operator.STARTS,
+            TokenType.ENDS: Operator.ENDS,
+            TokenType.MATCHES: Operator.MATCHES,
+        }
+        if token.type not in mapping:
+            raise ValueError(f"Invalid operator: {token.type}")
+        return mapping[token.type]
+
+    def _parse_value(self) -> Any:
+        """Parse value (string, number, boolean, identifier)"""
+        token = self._current_token()
+
+        if token.type == TokenType.STRING:
+            value = token.value
+            self._advance()
+            return value
+        elif token.type == TokenType.NUMBER:
+            value = int(token.value)
+            self._advance()
+            return value
+        elif token.type == TokenType.TRUE:
+            self._advance()
+            return True
+        elif token.type == TokenType.FALSE:
+            self._advance()
+            return False
+        elif token.type == TokenType.IDENTIFIER:
+            # Field reference (like "visible" as boolean field)
+            value = token.value
+            self._advance()
+            return value
+        else:
+            raise ValueError(f"Expected value, got {token.type}")
+
+    # ========== Helper Methods ==========
 
     def _current_token(self) -> Token:
         """Get current token"""
