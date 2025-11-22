@@ -2,6 +2,69 @@
 
 All notable changes to Selector CLI will be documented in this file.
 
+## [Phase 3 Core Complete] - 2025-11-23
+
+### Added - Code Generation and Export
+- **Export command**: `export <format> [> filename]`
+- **3 Code Generators**:
+  - Playwright (Python) - Generate Playwright automation code
+  - Selenium (Python) - Generate Selenium automation code
+  - Puppeteer (JavaScript) - Generate Puppeteer automation code
+- **3 Data Exporters**:
+  - JSON - Export elements as JSON
+  - CSV - Export elements as CSV
+  - YAML - Export elements as YAML
+- **File redirection**: `export playwright > test.py`
+- **Automatic variable naming**: Intelligent variable name generation from element properties
+
+### Usage Examples
+```bash
+# Print generated code to console
+export playwright
+export selenium
+export puppeteer
+
+# Export data formats
+export json
+export csv
+export yaml
+
+# Write to file
+export playwright > login_test.py
+export json > elements.json
+export csv > data.csv
+```
+
+### Implementation Details
+- Generators architecture with base class and concrete implementations
+- Smart selector formatting (prefers CSS selectors, falls back to generated)
+- Python-friendly variable name sanitization
+- UTF-8 file writing with error handling
+
+### Tests
+- ✅ 8 test suites (all passing)
+- ✅ Export command parsing (8 cases)
+- ✅ All 6 generators tested
+- ✅ File export functionality tested
+- ✅ Backward compatibility maintained
+
+### Technical Details
+**New Components**:
+- `src/generators/base.py` - CodeGenerator base class
+- `src/generators/playwright_gen.py` - Playwright generator
+- `src/generators/selenium_gen.py` - Selenium generator
+- `src/generators/puppeteer_gen.py` - Puppeteer generator
+- `src/generators/data_exporters.py` - JSON/CSV/YAML exporters
+
+**Modified Files**:
+- `src/parser/lexer.py` - Added EXPORT and format tokens
+- `src/parser/parser.py` - Added export command parsing
+- `src/commands/executor.py` - Added export execution
+
+**Lines Added**: +896 lines
+
+---
+
 ## [Unreleased] - 2025-11-23
 
 ### Changed
