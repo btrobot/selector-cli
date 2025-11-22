@@ -33,18 +33,33 @@ class TokenType(Enum):
     # Operators
     EQUALS = auto()
     NOT_EQUALS = auto()
+    GT = auto()         # >
+    GTE = auto()        # >=
+    LT = auto()         # <
+    LTE = auto()        # <=
     AND = auto()
     OR = auto()
     NOT = auto()
 
+    # String operators
+    CONTAINS = auto()
+    STARTS = auto()
+    ENDS = auto()
+    MATCHES = auto()
+
     # Literals
     STRING = auto()
     NUMBER = auto()
+    TRUE = auto()
+    FALSE = auto()
 
     # Delimiters
-    LBRACKET = auto()
-    RBRACKET = auto()
-    COMMA = auto()
+    LPAREN = auto()     # (
+    RPAREN = auto()     # )
+    LBRACKET = auto()   # [
+    RBRACKET = auto()   # ]
+    COMMA = auto()      # ,
+    DASH = auto()       # -
 
     # Other
     IDENTIFIER = auto()
@@ -63,6 +78,7 @@ class Lexer:
     """Tokenize command strings"""
 
     KEYWORDS = {
+        # Commands
         'open': TokenType.OPEN,
         'scan': TokenType.SCAN,
         'add': TokenType.ADD,
@@ -77,15 +93,29 @@ class Lexer:
         'exit': TokenType.EXIT,
         'q': TokenType.QUIT,
         'help': TokenType.HELP,
+
+        # Element types
         'input': TokenType.INPUT,
         'button': TokenType.BUTTON,
         'select': TokenType.SELECT,
         'textarea': TokenType.TEXTAREA,
         'a': TokenType.LINK,
         'all': TokenType.ALL,
+
+        # Logic operators
         'and': TokenType.AND,
         'or': TokenType.OR,
         'not': TokenType.NOT,
+
+        # String operators
+        'contains': TokenType.CONTAINS,
+        'starts': TokenType.STARTS,
+        'ends': TokenType.ENDS,
+        'matches': TokenType.MATCHES,
+
+        # Boolean literals
+        'true': TokenType.TRUE,
+        'false': TokenType.FALSE,
     }
 
     def __init__(self):
@@ -120,28 +150,75 @@ class Lexer:
                 continue
 
             # Operators and delimiters
+            # Greater than or equal
+            if self._current_char() == '>' and self._peek() == '=':
+                tokens.append(Token(TokenType.GTE, '>=', self.position))
+                self.position += 2
+                continue
+
+            # Greater than
+            if self._current_char() == '>':
+                tokens.append(Token(TokenType.GT, '>', self.position))
+                self.position += 1
+                continue
+
+            # Less than or equal
+            if self._current_char() == '<' and self._peek() == '=':
+                tokens.append(Token(TokenType.LTE, '<=', self.position))
+                self.position += 2
+                continue
+
+            # Less than
+            if self._current_char() == '<':
+                tokens.append(Token(TokenType.LT, '<', self.position))
+                self.position += 1
+                continue
+
+            # Equals
             if self._current_char() == '=':
                 tokens.append(Token(TokenType.EQUALS, '=', self.position))
                 self.position += 1
                 continue
 
+            # Not equals
             if self._current_char() == '!' and self._peek() == '=':
                 tokens.append(Token(TokenType.NOT_EQUALS, '!=', self.position))
                 self.position += 2
                 continue
 
+            # Left parenthesis
+            if self._current_char() == '(':
+                tokens.append(Token(TokenType.LPAREN, '(', self.position))
+                self.position += 1
+                continue
+
+            # Right parenthesis
+            if self._current_char() == ')':
+                tokens.append(Token(TokenType.RPAREN, ')', self.position))
+                self.position += 1
+                continue
+
+            # Left bracket
             if self._current_char() == '[':
                 tokens.append(Token(TokenType.LBRACKET, '[', self.position))
                 self.position += 1
                 continue
 
+            # Right bracket
             if self._current_char() == ']':
                 tokens.append(Token(TokenType.RBRACKET, ']', self.position))
                 self.position += 1
                 continue
 
+            # Comma
             if self._current_char() == ',':
                 tokens.append(Token(TokenType.COMMA, ',', self.position))
+                self.position += 1
+                continue
+
+            # Dash (for ranges like [1-10])
+            if self._current_char() == '-':
+                tokens.append(Token(TokenType.DASH, '-', self.position))
                 self.position += 1
                 continue
 
