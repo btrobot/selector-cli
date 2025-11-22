@@ -2,6 +2,49 @@
 
 All notable changes to Selector CLI will be documented in this file.
 
+## [Phase 4 Complete - Final] - 2025-11-23
+
+### Added - Variable Expansion
+- **Variable Expansion**:
+  - `$var` - Simple variable reference
+  - `${var}` - Variable with explicit boundary
+  - Automatic expansion in all commands
+  - Error handling for undefined variables
+- **VariableExpander** utility class
+- **Integration**: Variables expand before command parsing in REPL
+
+### Usage Examples
+```bash
+# Set variables
+set base_url = https://example.com
+set api_path = /api/v1
+set timeout = 30
+
+# Use variables - simple reference
+open $base_url
+
+# Use variables - with boundary
+open ${base_url}/login
+export json > ${api_path}/data.json
+
+# Mixed usage
+open $base_url${api_path}/users
+```
+
+### Technical Details
+**New Components**:
+- `src/core/variable_expander.py` - VariableExpander class
+
+**Modified Files**:
+- `src/repl/main.py` - Integrated variable expansion before parsing
+
+**Tests**:
+- `tests/test_variable_expansion.py` - 7 test suites (all passing)
+
+**Lines Added**: ~200 lines
+
+---
+
 ## [Phase 4 Extended Complete] - 2025-11-23
 
 ### Added - Macro System and Script Execution

@@ -6,6 +6,7 @@ from src.parser.parser import Parser
 from src.commands.executor import CommandExecutor
 from src.core.context import Context
 from src.core.browser import BrowserManager
+from src.core.variable_expander import VariableExpander
 
 
 class SelectorREPL:
@@ -15,6 +16,7 @@ class SelectorREPL:
         self.parser = Parser()
         self.executor = CommandExecutor()
         self.context = Context()
+        self.variable_expander = VariableExpander()
         self.running = False
 
     async def run(self):
@@ -42,6 +44,14 @@ class SelectorREPL:
 
                 # Add to history
                 self.context.add_to_history(line)
+
+                # Expand variables
+                try:
+                    if self.variable_expander.has_variables(line):
+                        line = self.variable_expander.expand(line, self.context.variables)
+                except ValueError as e:
+                    print(f"Variable error: {e}")
+                    continue
 
                 # Parse command
                 try:

@@ -10,6 +10,7 @@ from src.parser.parser import Parser  # For parsing macro commands
 from src.core.context import Context
 from src.core.scanner import ElementScanner
 from src.core.storage import StorageManager  # Phase 4
+from src.core.variable_expander import VariableExpander  # Phase 4
 # Phase 3: Import generators
 from src.generators import (
     PlaywrightGenerator, SeleniumGenerator, PuppeteerGenerator,
