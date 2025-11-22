@@ -2,6 +2,55 @@
 
 All notable changes to Selector CLI will be documented in this file.
 
+## [Phase 4 Complete] - 2025-11-23
+
+### Added - Persistence and Variables
+- **Collection Persistence**:
+  - `save <name>` - Save current collection to file
+  - `load <name>` - Load collection from file
+  - `saved` - List all saved collections
+  - `delete <name>` - Delete saved collection
+- **Variable System**:
+  - `set <name> = <value>` - Set a variable
+  - `vars` - List all variables
+- **Storage Manager**:
+  - JSON-based storage in `~/.selector-cli/collections/`
+  - Automatic filename sanitization
+  - Metadata preservation (URL, timestamp, count)
+
+### Usage Examples
+```bash
+# Save and load collections
+add input where type="email"
+save login_form
+load login_form
+
+# List and manage saved collections
+saved
+delete old_collection
+
+# Variables
+set timeout = 30
+set base_url = "https://example.com"
+vars
+```
+
+### Technical Details
+**New Components**:
+- `src/core/storage.py` - StorageManager class
+
+**Modified Files**:
+- `src/parser/lexer.py` - Added SAVE/LOAD/SAVED/DELETE/SET/VARS tokens
+- `src/parser/parser.py` - Added persistence command parsing
+- `src/commands/executor.py` - Added persistence command execution
+
+**Tests**:
+- `tests/test_phase4_persistence.py` - 5 test suites (all passing)
+
+**Lines Added**: ~500 lines
+
+---
+
 ## [Phase 3 Core Complete] - 2025-11-23
 
 ### Added - Code Generation and Export

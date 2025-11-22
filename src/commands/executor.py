@@ -8,6 +8,7 @@ from src.parser.command import (
 )
 from src.core.context import Context
 from src.core.scanner import ElementScanner
+from src.core.storage import StorageManager  # Phase 4
 # Phase 3: Import generators
 from src.generators import (
     PlaywrightGenerator, SeleniumGenerator, PuppeteerGenerator,
@@ -20,6 +21,7 @@ class CommandExecutor:
 
     def __init__(self):
         self.scanner = ElementScanner()
+        self.storage = StorageManager()  # Phase 4
 
     async def execute(self, command: Command, context: Context) -> str:
         """Execute command and return result message"""
@@ -42,6 +44,18 @@ class CommandExecutor:
             return await self._execute_count(command, context)
         elif command.verb == 'export':
             return await self._execute_export(command, context)
+        elif command.verb == 'save':
+            return await self._execute_save(command, context)
+        elif command.verb == 'load':
+            return await self._execute_load(command, context)
+        elif command.verb == 'saved':
+            return await self._execute_saved(command, context)
+        elif command.verb == 'delete':
+            return await self._execute_delete(command, context)
+        elif command.verb == 'set':
+            return await self._execute_set(command, context)
+        elif command.verb == 'vars':
+            return await self._execute_vars(command, context)
         elif command.verb == 'help':
             return await self._execute_help(command, context)
         else:
@@ -246,6 +260,130 @@ class CommandExecutor:
         else:
             # Return output directly (will be printed to console)
             return f"# Export: {export_format}\n\n{output}"
+
+    # ========== Phase 4: Persistence Commands ==========
+
+    async def _execute_save(self, command: Command, context: Context) -> str:
+        """Execute save command - save collection to file"""
+        if not command.argument:
+            return "Error: No collection name specified"
+
+        name = command.argument
+        elements = list(context.collection.elements)
+
+        if not elements:
+            return "Error: Collection is empty. Add elements before saving."
+
+        try:
+            filepath = self.storage.save_collection(
+                name=name,
+                elements=elements,
+                url=context.current_url
+            )
+            return f"Saved {len(elements)} element(s) as '{name}'"
+        except Exception as e:
+            return f"Error saving collection: {e}"
+
+    async def _execute_load(self, command: Command, context: Context) -> str:
+        """Execute load command - load collection from file"""
+        if not command.argument:
+            return "Error: No collection name specified"
+
+        name = command.argument
+
+        try:
+            elements, metadata = self.storage.load_collection(name)
+
+            # Replace current collection
+            context.collection.clear()
+            for elem in elements:
+                context.collection.add(elem)
+
+            url_info = f" (from {metadata['url']})" if metadata.get('url') else ""
+            return f"Loaded {len(elements)} element(s) from '{name}'{url_info}"
+        except FileNotFoundError:
+            return f"Error: Collection '{name}' not found"
+        except Exception as e:
+            return f"Error loading collection: {e}"
+
+    async def _execute_saved(self, command: Command, context: Context) -> str:
+        """Execute saved command - list all saved collections"""
+        collections = self.storage.list_collections()
+
+        if not collections:
+            return "No saved collections"
+
+        lines = ["Saved collections:"]
+        for coll in collections:
+            saved_at = coll.get('saved_at', '')[:10]  # Date only
+            count = coll.get('count', 0)
+            url = coll.get('url', '')
+            url_short = url[:40] + '...' if len(url) > 40 else url
+
+            line = f"  {coll['name']}: {count} elements"
+            if url_short:
+                line += f" ({url_short})"
+            if saved_at:
+                line += f" [{saved_at}]"
+            lines.append(line)
+
+        return "\n".join(lines)
+
+    async def _execute_delete(self, command: Command, context: Context) -> str:
+        """Execute delete command - delete saved collection"""
+        if not command.argument:
+            return "Error: No collection name specified"
+
+        name = command.argument
+
+        try:
+            self.storage.delete_collection(name)
+            return f"Deleted collection '{name}'"
+        except FileNotFoundError:
+            return f"Error: Collection '{name}' not found"
+        except Exception as e:
+            return f"Error deleting collection: {e}"
+
+    async def _execute_set(self, command: Command, context: Context) -> str:
+        """Execute set command - set a variable"""
+        if not command.argument:
+            return "Error: No variable specified"
+
+        # Parse "name=value" format
+        if '=' not in command.argument:
+            return "Error: Invalid set format. Use: set name = value"
+
+        name, value = command.argument.split('=', 1)
+        name = name.strip()
+        value = value.strip()
+
+        # Try to parse value as appropriate type
+        if value.lower() == 'true':
+            value = True
+        elif value.lower() == 'false':
+            value = False
+        elif value.isdigit():
+            value = int(value)
+        else:
+            try:
+                value = float(value)
+            except ValueError:
+                pass  # Keep as string
+
+        context.variables[name] = value
+        return f"Set {name} = {value}"
+
+    async def _execute_vars(self, command: Command, context: Context) -> str:
+        """Execute vars command - list all variables"""
+        if not context.variables:
+            return "No variables set"
+
+        lines = ["Variables:"]
+        for name, value in context.variables.items():
+            value_type = type(value).__name__
+            lines.append(f"  {name} = {value} ({value_type})")
+
+        return "\n".join(lines)
 
     async def _execute_help(self, command: Command, context: Context) -> str:
         """Execute help command"""

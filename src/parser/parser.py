@@ -49,6 +49,18 @@ class Parser:
             return self._parse_count(command_str)
         elif verb_token.type == TokenType.EXPORT:
             return self._parse_export(command_str)
+        elif verb_token.type == TokenType.SAVE:
+            return self._parse_save(command_str)
+        elif verb_token.type == TokenType.LOAD:
+            return self._parse_load(command_str)
+        elif verb_token.type == TokenType.SAVED:
+            return self._parse_saved(command_str)
+        elif verb_token.type == TokenType.DELETE:
+            return self._parse_delete(command_str)
+        elif verb_token.type == TokenType.SET:
+            return self._parse_set(command_str)
+        elif verb_token.type == TokenType.VARS:
+            return self._parse_vars(command_str)
         elif verb_token.type in (TokenType.QUIT, TokenType.EXIT):
             return Command(verb='quit', raw=command_str)
         elif verb_token.type == TokenType.HELP:
@@ -205,6 +217,80 @@ class Parser:
             argument = export_format
 
         return Command(verb='export', argument=argument, raw=raw)
+
+    # ========== Phase 4: Persistence Commands ==========
+
+    def _parse_save(self, raw: str) -> Command:
+        """Parse: save <name>"""
+        self._consume(TokenType.SAVE)
+
+        # Get collection name
+        name_token = self._current_token()
+        if name_token.type in (TokenType.STRING, TokenType.IDENTIFIER):
+            name = name_token.value
+            self._advance()
+        else:
+            raise ValueError("Expected collection name after 'save'")
+
+        return Command(verb='save', argument=name, raw=raw)
+
+    def _parse_load(self, raw: str) -> Command:
+        """Parse: load <name>"""
+        self._consume(TokenType.LOAD)
+
+        # Get collection name
+        name_token = self._current_token()
+        if name_token.type in (TokenType.STRING, TokenType.IDENTIFIER):
+            name = name_token.value
+            self._advance()
+        else:
+            raise ValueError("Expected collection name after 'load'")
+
+        return Command(verb='load', argument=name, raw=raw)
+
+    def _parse_saved(self, raw: str) -> Command:
+        """Parse: saved"""
+        self._consume(TokenType.SAVED)
+        return Command(verb='saved', raw=raw)
+
+    def _parse_delete(self, raw: str) -> Command:
+        """Parse: delete <name>"""
+        self._consume(TokenType.DELETE)
+
+        # Get collection name
+        name_token = self._current_token()
+        if name_token.type in (TokenType.STRING, TokenType.IDENTIFIER):
+            name = name_token.value
+            self._advance()
+        else:
+            raise ValueError("Expected collection name after 'delete'")
+
+        return Command(verb='delete', argument=name, raw=raw)
+
+    def _parse_set(self, raw: str) -> Command:
+        """Parse: set <name> = <value>"""
+        self._consume(TokenType.SET)
+
+        # Get variable name
+        name_token = self._current_token()
+        if name_token.type != TokenType.IDENTIFIER:
+            raise ValueError("Expected variable name after 'set'")
+        var_name = name_token.value
+        self._advance()
+
+        # Expect =
+        self._consume(TokenType.EQUALS)
+
+        # Get value
+        value = self._parse_value()
+
+        # Store as "name=value" in argument
+        return Command(verb='set', argument=f"{var_name}={value}", raw=raw)
+
+    def _parse_vars(self, raw: str) -> Command:
+        """Parse: vars"""
+        self._consume(TokenType.VARS)
+        return Command(verb='vars', raw=raw)
 
 
     def _parse_target(self) -> Target:

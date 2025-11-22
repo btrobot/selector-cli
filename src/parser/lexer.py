@@ -23,6 +23,14 @@ class TokenType(Enum):
     HELP = auto()
     EXPORT = auto()  # Phase 3
 
+    # Phase 4 - Persistence
+    SAVE = auto()
+    LOAD = auto()
+    SAVED = auto()
+    DELETE = auto()
+    SET = auto()
+    VARS = auto()
+
     # Element types
     INPUT = auto()
     BUTTON = auto()
@@ -103,6 +111,14 @@ class Lexer:
         'q': TokenType.QUIT,
         'help': TokenType.HELP,
         'export': TokenType.EXPORT,  # Phase 3
+
+        # Phase 4 - Persistence
+        'save': TokenType.SAVE,
+        'load': TokenType.LOAD,
+        'saved': TokenType.SAVED,
+        'delete': TokenType.DELETE,
+        'set': TokenType.SET,
+        'vars': TokenType.VARS,
 
         # Element types
         'input': TokenType.INPUT,
