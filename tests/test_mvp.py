@@ -4,12 +4,12 @@ Test script for Selector CLI Phase 1 MVP
 import sys
 from pathlib import Path
 
-# Add src to path
-src_path = Path(__file__).parent.parent / 'src'
-sys.path.insert(0, str(src_path))
+# Add parent directory to path
+parent_path = Path(__file__).parent.parent
+sys.path.insert(0, str(parent_path))
 
-from parser.lexer import Lexer
-from parser.parser import Parser
+from src.parser.lexer import Lexer
+from src.parser.parser import Parser
 
 
 def test_lexer():
@@ -80,7 +80,7 @@ def test_command_structures():
     """Test command data structures"""
     print("Testing Command Structures...")
 
-    from parser.command import Command, Target, TargetType, Condition, Operator
+    from src.parser.command import Command, Target, TargetType, Condition, Operator
 
     # Test Target
     target1 = Target(type=TargetType.ELEMENT_TYPE, element_type="input")

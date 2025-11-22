@@ -7,11 +7,11 @@ import sys
 import asyncio
 from pathlib import Path
 
-# Add src to path
-src_path = Path(__file__).parent / 'src'
-sys.path.insert(0, str(src_path))
+# Add parent directory to path so we can import src as a package
+parent_path = Path(__file__).parent
+sys.path.insert(0, str(parent_path))
 
-from repl.main import main
+from src.repl.main import main
 
 if __name__ == '__main__':
     asyncio.run(main())

@@ -2,10 +2,10 @@
 REPL (Read-Eval-Print Loop) for Selector CLI
 """
 import asyncio
-from ..parser.parser import Parser
-from ..commands.executor import CommandExecutor
-from ..core.context import Context
-from ..core.browser import BrowserManager
+from src.parser.parser import Parser
+from src.commands.executor import CommandExecutor
+from src.core.context import Context
+from src.core.browser import BrowserManager
 
 
 class SelectorREPL:

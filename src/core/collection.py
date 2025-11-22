@@ -3,7 +3,7 @@ ElementCollection data model for Selector CLI
 """
 from typing import List, Dict, Optional, Callable
 from datetime import datetime
-from .element import Element
+from src.core.element import Element
 
 
 class ElementCollection:

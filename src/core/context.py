@@ -3,9 +3,9 @@ Execution context for Selector CLI
 """
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-from .element import Element
-from .collection import ElementCollection
-from .browser import BrowserManager
+from src.core.element import Element
+from src.core.collection import ElementCollection
+from src.core.browser import BrowserManager
 
 
 class Context:

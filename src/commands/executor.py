@@ -2,9 +2,9 @@
 Command executor for Selector CLI
 """
 from typing import Optional
-from ..parser.command import Command, TargetType, Operator
-from ..core.context import Context
-from ..core.scanner import ElementScanner
+from src.parser.command import Command, TargetType, Operator
+from src.core.context import Context
+from src.core.scanner import ElementScanner
 
 
 class CommandExecutor:
@@ -54,6 +54,12 @@ class CommandExecutor:
         if success:
             context.current_url = url
             context.is_page_loaded = True
+
+            # Clear previous page's elements and collection
+            context.all_elements.clear()
+            context.collection.clear()
+            context.last_scan_time = None
+
             return f"Opened: {url}"
         else:
             return f"Failed to open: {url}"

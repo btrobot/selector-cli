@@ -3,7 +3,7 @@ Element scanner for Selector CLI
 """
 from typing import List
 from playwright.async_api import Page
-from .element import Element
+from src.core.element import Element
 import uuid
 
 

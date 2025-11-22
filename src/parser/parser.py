@@ -2,8 +2,8 @@
 Parser for Selector CLI (Phase 1)
 """
 from typing import List, Optional
-from .lexer import Lexer, Token, TokenType
-from .command import Command, Target, TargetType, Condition, Operator
+from src.parser.lexer import Lexer, Token, TokenType
+from src.parser.command import Command, Target, TargetType, Condition, Operator
 
 
 class Parser:
