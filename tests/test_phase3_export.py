@@ -174,7 +174,7 @@ def test_puppeteer_generator():
     # Verify key components
     assert "const puppeteer = require('puppeteer')" in code
     assert "await page.goto('https://example.com/login')" in code
-    assert "await page.$$" in code
+    assert "await page.$(" in code  # Single element selector
 
     print("\n[OK] Puppeteer generator works correctly")
     return True

@@ -1,7 +1,7 @@
 """
 Puppeteer code generator for JavaScript/Node.js
 """
-from typing import List, Optional
+from typing import List, Optional, Dict
 from src.core.element import Element
 from src.generators.base import CodeGenerator
 
@@ -22,6 +22,14 @@ class PuppeteerGenerator(CodeGenerator):
 
         self.url = url or "https://example.com"
 
+        # Group elements by selector to avoid duplicates
+        selector_map: Dict[str, List[Element]] = {}
+        for elem in elements:
+            selector = self.format_selector(elem)
+            if selector not in selector_map:
+                selector_map[selector] = []
+            selector_map[selector].append(elem)
+
         lines = []
 
         # Header
@@ -36,25 +44,22 @@ class PuppeteerGenerator(CodeGenerator):
         lines.append(f"  await page.goto('{self.url}');")
         lines.append("")
 
-        # Element locators
-        lines.append("  // Element locators")
-        for elem in elements:
+        # Element locators (deduplicated)
+        lines.append("  // Locate elements")
+        for selector, elems in selector_map.items():
+            elem = elems[0]
             var_name = self.generate_variable_name(elem)
-            selector = self.format_selector(elem)
-            lines.append(f"  const {var_name} = await page.$$('{selector}');")
+
+            if len(elems) > 1:
+                lines.append(f"  const {var_name}All = await page.$$('{selector}');")
+            else:
+                lines.append(f"  const {var_name} = await page.$('{selector}');")
 
         lines.append("")
-        lines.append("  // TODO: Add your automation logic here")
-        lines.append("  // Example:")
-        if elements:
-            first_elem = elements[0]
-            var_name = self.generate_variable_name(first_elem)
-            if first_elem.tag == "input":
-                lines.append(f"  // await {var_name}[0].type('your text');")
-            elif first_elem.tag == "button":
-                lines.append(f"  // await {var_name}[0].click();")
-            else:
-                lines.append(f"  // await {var_name}[0].click();")
+
+        # Generate actionable example code
+        lines.append("  // Example interactions")
+        self._generate_action_examples(lines, selector_map)
 
         lines.append("")
         lines.append("  // Keep browser open for inspection")
@@ -65,3 +70,45 @@ class PuppeteerGenerator(CodeGenerator):
         lines.append("})();")
 
         return "\n".join(lines)
+
+    def _generate_action_examples(self, lines: List[str], selector_map: Dict[str, List[Element]]):
+        """Generate realistic action examples"""
+        input_count = 0
+        button_count = 0
+
+        for selector, elems in selector_map.items():
+            elem = elems[0]
+            var_name = self.generate_variable_name(elem)
+            is_multiple = len(elems) > 1
+
+            if elem.tag == "input":
+                input_count += 1
+                if input_count <= 3:
+                    if is_multiple:
+                        lines.append(f"  // await {var_name}All[0].type('text');")
+                    else:
+                        if elem.type == "email":
+                            lines.append(f"  await {var_name}.type('user@example.com');")
+                        elif elem.type == "password":
+                            lines.append(f"  await {var_name}.type('your_password');")
+                        elif elem.type in ("text", "search"):
+                            placeholder = elem.placeholder or "text"
+                            lines.append(f"  await {var_name}.type('{placeholder}');")
+                        else:
+                            lines.append(f"  // await {var_name}.type('text');")
+
+            elif elem.tag == "button":
+                button_count += 1
+                if button_count == 1:
+                    if is_multiple:
+                        lines.append(f"  // await {var_name}All[0].click();")
+                    else:
+                        if elem.type == "submit" or "submit" in elem.text.lower():
+                            lines.append(f"  await {var_name}.click();  // Submit form")
+                        else:
+                            lines.append(f"  // await {var_name}.click();")
+
+            elif elem.tag == "select":
+                if not is_multiple:
+                    lines.append(f"  // await page.select('{selector}', 'value');")
+
