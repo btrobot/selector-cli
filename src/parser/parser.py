@@ -69,6 +69,22 @@ class Parser:
             return self._parse_macros(command_str)
         elif verb_token.type == TokenType.EXEC:
             return self._parse_exec(command_str)
+        elif verb_token.type == TokenType.HIGHLIGHT:
+            return self._parse_highlight(command_str)
+        elif verb_token.type == TokenType.UNHIGHLIGHT:
+            return self._parse_unhighlight(command_str)
+        elif verb_token.type == TokenType.UNION:
+            return self._parse_union(command_str)
+        elif verb_token.type == TokenType.INTERSECT:
+            return self._parse_intersect(command_str)
+        elif verb_token.type == TokenType.DIFFERENCE:
+            return self._parse_difference(command_str)
+        elif verb_token.type == TokenType.UNIQUE:
+            return self._parse_unique(command_str)
+        elif verb_token.type == TokenType.HISTORY:
+            return self._parse_history(command_str)
+        elif verb_token.type == TokenType.BANG:
+            return self._parse_bang(command_str)
         elif verb_token.type in (TokenType.QUIT, TokenType.EXIT):
             return Command(verb='quit', raw=command_str)
         elif verb_token.type == TokenType.HELP:
@@ -372,6 +388,113 @@ class Parser:
             raise ValueError("Expected filepath after 'exec'")
 
         return Command(verb='exec', argument=filepath, raw=raw)
+
+    def _parse_highlight(self, raw: str) -> Command:
+        """Parse: highlight [<target>] [where <condition>]"""
+        self._consume(TokenType.HIGHLIGHT)
+
+        # Check if there's a target (optional)
+        # If next token is EOF, highlight current collection
+        if self._current_token().type == TokenType.EOF:
+            return Command(verb='highlight', raw=raw)
+
+        # Try to parse target
+        target = None
+        try:
+            target = self._parse_target()
+        except ValueError:
+            # No target, highlight current collection
+            return Command(verb='highlight', raw=raw)
+
+        # Parse optional WHERE clause
+        condition_tree = None
+        if self._current_token().type == TokenType.WHERE:
+            condition_tree = self._parse_where_clause_v2()
+
+        return Command(verb='highlight', target=target, condition_tree=condition_tree, raw=raw)
+
+    def _parse_unhighlight(self, raw: str) -> Command:
+        """Parse: unhighlight"""
+        self._consume(TokenType.UNHIGHLIGHT)
+        return Command(verb='unhighlight', raw=raw)
+
+    def _parse_union(self, raw: str) -> Command:
+        """Parse: union <collection_name>"""
+        self._consume(TokenType.UNION)
+
+        # Get collection name
+        name_token = self._current_token()
+        if name_token.type != TokenType.IDENTIFIER:
+            raise ValueError("Expected collection name after 'union'")
+
+        collection_name = name_token.value
+        self._advance()
+
+        return Command(verb='union', argument=collection_name, raw=raw)
+
+    def _parse_intersect(self, raw: str) -> Command:
+        """Parse: intersect <collection_name>"""
+        self._consume(TokenType.INTERSECT)
+
+        # Get collection name
+        name_token = self._current_token()
+        if name_token.type != TokenType.IDENTIFIER:
+            raise ValueError("Expected collection name after 'intersect'")
+
+        collection_name = name_token.value
+        self._advance()
+
+        return Command(verb='intersect', argument=collection_name, raw=raw)
+
+    def _parse_difference(self, raw: str) -> Command:
+        """Parse: difference <collection_name>"""
+        self._consume(TokenType.DIFFERENCE)
+
+        # Get collection name
+        name_token = self._current_token()
+        if name_token.type != TokenType.IDENTIFIER:
+            raise ValueError("Expected collection name after 'difference'")
+
+        collection_name = name_token.value
+        self._advance()
+
+        return Command(verb='difference', argument=collection_name, raw=raw)
+
+    def _parse_unique(self, raw: str) -> Command:
+        """Parse: unique"""
+        self._consume(TokenType.UNIQUE)
+        return Command(verb='unique', raw=raw)
+
+    def _parse_history(self, raw: str) -> Command:
+        """Parse: history [n]"""
+        self._consume(TokenType.HISTORY)
+
+        # Check for optional number argument
+        if self._current_token().type == TokenType.NUMBER:
+            count = int(self._current_token().value)
+            self._advance()
+            return Command(verb='history', argument=str(count), raw=raw)
+
+        return Command(verb='history', raw=raw)
+
+    def _parse_bang(self, raw: str) -> Command:
+        """Parse: !n or !!"""
+        self._consume(TokenType.BANG)
+
+        # Check next token
+        next_token = self._current_token()
+
+        if next_token.type == TokenType.BANG:
+            # !! - execute last command
+            self._advance()
+            return Command(verb='bang_last', raw=raw)
+        elif next_token.type == TokenType.NUMBER:
+            # !n - execute command at index n
+            index = int(next_token.value)
+            self._advance()
+            return Command(verb='bang_n', argument=str(index), raw=raw)
+        else:
+            raise ValueError("Expected number or '!' after '!'")
 
 
     def _parse_target(self) -> Target:

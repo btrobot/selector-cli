@@ -2,6 +2,316 @@
 
 All notable changes to Selector CLI will be documented in this file.
 
+## [Phase 5 - Auto-completion] - 2025-11-23
+
+### Added - Tab Completion for Commands
+- **Tab Completion Support**:
+  - Integrated GNU readline for interactive tab completion
+  - Context-aware completion based on command structure
+  - Cross-platform compatibility (GNU readline and libedit)
+- **Command Completion**:
+  - All 31 commands available for completion
+  - Smart prefix matching (e.g., 'ad' → 'add', 'hi' → 'highlight')
+- **Parameter Completion**:
+  - Element types: `input`, `button`, `select`, `textarea`, `a`, `link`, `all`
+  - Field names: `type`, `id`, `name`, `text`, `value`, `visible`, `enabled`, etc.
+  - Export formats: `playwright`, `selenium`, `puppeteer`, `json`, `csv`, `yaml`
+  - String operators: `contains`, `starts`, `ends`, `matches`
+- **Dynamic Completion**:
+  - Collection names loaded from storage for `union`, `intersect`, `load`, `delete`
+  - File path completion for `exec` command
+- **Context-Aware Suggestions**:
+  - After `add` → suggest element types
+  - After `add input` → suggest `where`
+  - After `where` → suggest field names
+  - After field names → suggest operators
+
+### Usage Examples
+```bash
+# Command completion
+selector> ad<TAB>
+add
+
+# Element type completion
+selector> add in<TAB>
+input
+
+# Context-aware field completion
+selector> add input where ty<TAB>
+type
+
+# Operator completion
+selector> add input where type con<TAB>
+contains
+
+# Collection name completion
+selector> union te<TAB>
+test_inputs  test_buttons
+
+# Export format completion
+selector> export pla<TAB>
+playwright
+```
+
+### Technical Details
+**New Components**:
+- `src/core/completer.py` - SelectorCompleter class (~200 lines)
+
+**Modified Files**:
+- `src/repl/main.py` - Integrated readline with completer (~60 lines added)
+
+**Tests**:
+- `tests/test_phase5_autocomplete.py` - 8 test suites (all passing)
+  - Command completion tests
+  - Element type completion tests
+  - Field name completion tests
+  - Export format completion tests
+  - Context-aware completion tests
+  - Collection name completion tests
+  - String operator completion tests
+  - _match function tests
+
+**Lines Added**: ~280 lines
+
+**Priority**: P1 (High Priority)
+- User value: 5/5 - Significantly improves CLI usability
+- Frequency: 5/5 - Used constantly during interaction
+- Complexity: 4/5 - Relatively simple implementation
+- Risk: 4/5 - Low risk, graceful degradation if readline unavailable
+
+**Note**: Requires `readline` module (available on Linux/macOS, may require `pyreadline3` on Windows)
+
+---
+
+## [Phase 5 - Command History] - 2025-11-23
+
+### Added - Command History and Replay
+- **History Commands**:
+  - `history` - Show all command history
+  - `history <n>` - Show last n commands
+  - `!n` - Execute command at index n (0-based)
+  - `!!` - Execute the last command
+- **Context Enhancements**:
+  - Added `get_history(count)` - Retrieve command history
+  - Added `get_history_command(index)` - Get specific command by index
+  - Added `get_last_command()` - Get most recent command
+- **Lexer Support**:
+  - Added HISTORY token for `history` keyword
+  - Added BANG token for `!` symbol (history replay)
+  - Smart handling of `!` vs `!=` (not equals operator)
+
+### Usage Examples
+```bash
+# View all command history
+history
+
+# View last 10 commands
+history 10
+
+# Execute command at index 5
+!5
+
+# Execute the last command again
+!!
+```
+
+### Example Session
+```bash
+selector> open https://example.com
+selector> add input
+selector> add button
+selector> history
+Command History:
+     0  open https://example.com
+     1  add input
+     2  add button
+     3  history
+
+selector> !1
+Executing: add input
+Added 0 element(s) to collection. Total: 5
+
+selector> !!
+Executing: add input
+Added 0 element(s) to collection. Total: 5
+```
+
+### Technical Details
+**Modified Files**:
+- `src/parser/lexer.py` - Added HISTORY and BANG tokens
+- `src/parser/parser.py` - Added history command parsing (~40 lines)
+- `src/core/context.py` - Added history retrieval methods (~40 lines)
+- `src/commands/executor.py` - Added history execution (~80 lines)
+
+**Tests**:
+- `tests/test_phase5_history.py` - 6 test suites (all passing)
+  - Token tests (HISTORY, BANG)
+  - Command parsing tests
+  - Context history method tests
+  - Output formatting tests
+  - Error handling tests
+  - Backward compatibility tests
+
+**Lines Added**: ~160 lines
+
+**Priority**: P1 (High Priority)
+- User value: 4/5 - Significantly improves CLI efficiency
+- Frequency: 4/5 - Used frequently for repeated operations
+- Complexity: 4/5 - Relatively simple implementation
+- Risk: 4/5 - Low risk, no browser dependencies
+
+---
+
+## [Phase 5 - Set Operations] - 2025-11-23
+
+### Added - Collection Set Operations
+- **Set Operation Commands**:
+  - `union <collection>` - Combine current collection with saved collection
+  - `intersect <collection>` - Keep only elements common to both collections
+  - `difference <collection>` - Remove elements that exist in other collection
+  - `unique` - Remove duplicates from current collection
+- **ElementCollection Enhancements**:
+  - Added `union_in_place()` - Modifies collection in-place
+  - Added `intersect_in_place()` - Modifies collection in-place
+  - Added `difference_in_place()` - Modifies collection in-place
+  - Added `unique()` - Returns new collection without duplicates
+  - Added `get_all()` - Returns copy of all elements
+- **Integration with Storage**:
+  - Load saved collections for set operations
+  - Seamless integration with `save` and `load` commands
+
+### Usage Examples
+```bash
+# Save different element sets
+add input where type="text"
+save text_inputs
+
+clear
+add input where type="email"
+save email_inputs
+
+clear
+add input where type="password"
+save password_inputs
+
+# Union - combine collections
+load text_inputs
+union email_inputs
+# Current collection now has both text and email inputs
+
+# Intersect - keep only common elements
+load text_inputs
+union email_inputs
+save all_inputs
+
+clear
+add input where visible
+intersect all_inputs
+# Only visible inputs that are also text or email
+
+# Difference - remove specific elements
+load all_inputs
+difference password_inputs
+# All inputs except password fields
+
+# Unique - remove duplicates (already unique by design)
+unique
+```
+
+### Technical Details
+**Modified Files**:
+- `src/parser/lexer.py` - Added UNION/INTERSECT/DIFFERENCE/UNIQUE tokens
+- `src/parser/parser.py` - Added set operation command parsing (~50 lines)
+- `src/core/collection.py` - Added in-place operations and get_all() (~50 lines)
+- `src/commands/executor.py` - Added set operation execution (~100 lines)
+
+**Tests**:
+- `tests/test_phase5_set_operations.py` - 6 test suites (all passing)
+  - Token tests (4 operations)
+  - Command parsing tests
+  - Collection set operation tests
+  - In-place operation tests
+  - Error handling tests
+  - Backward compatibility tests
+
+**Lines Added**: ~200 lines
+
+**Priority**: P1 (High Priority)
+- User value: 4/5 - Powerful for complex element combinations
+- Frequency: 3/5 - Used in specific scenarios
+- Complexity: 5/5 - Very simple implementation
+- Risk: 5/5 - No risk, pure Python logic
+
+---
+
+## [Phase 5 - Highlight Feature] - 2025-11-23
+
+### Added - Visual Feedback (Highlight)
+- **Highlight Commands**:
+  - `highlight` - Highlight current collection elements
+  - `highlight <target>` - Highlight specific elements
+  - `highlight <target> where <condition>` - Highlight filtered elements
+  - `unhighlight` - Remove all highlights
+- **Highlighter Utility Class**:
+  - Visual element highlighting with colored borders
+  - Support for multiple color themes (default, success, info, warning)
+  - Automatic tracking of highlighted elements
+  - Clean unhighlight functionality
+- **Browser Integration**:
+  - Uses Playwright's element.evaluate() for highlighting
+  - Injects CSS outline and background color
+  - Persistent highlight state management
+
+### Usage Examples
+```bash
+# Highlight current collection
+add input
+highlight
+
+# Highlight specific elements
+highlight button
+highlight input where type="email"
+
+# Highlight with complex conditions
+highlight button where type="submit" and not disabled
+highlight a where text contains "Click"
+
+# Highlight by indices
+highlight [1-5]
+highlight [1,3,5]
+
+# Remove highlights
+unhighlight
+```
+
+### Technical Details
+**New Components**:
+- `src/core/highlighter.py` - Highlighter class (~180 lines)
+
+**Modified Files**:
+- `src/parser/lexer.py` - Added HIGHLIGHT/UNHIGHLIGHT tokens
+- `src/parser/parser.py` - Added highlight command parsing (~30 lines)
+- `src/commands/executor.py` - Added highlight execution logic (~60 lines)
+
+**Tests**:
+- `tests/test_phase5_highlight.py` - 6 test suites (all passing)
+  - Token parsing tests
+  - Command parsing tests
+  - Complex condition tests
+  - Index/range tests
+  - Error handling tests
+  - Backward compatibility tests
+
+**Lines Added**: ~270 lines
+
+**Priority**: P0 (Highest Priority)
+- User value: 5/5 - Visualization of selection results
+- Frequency: 5/5 - Used almost every time
+- Complexity: 4/5 - Relatively simple implementation
+- Risk: 5/5 - Low risk, Playwright native support
+
+---
+
 ## [Phase 4 Complete - Final] - 2025-11-23
 
 ### Added - Variable Expansion

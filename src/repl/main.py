@@ -2,11 +2,22 @@
 REPL (Read-Eval-Print Loop) for Selector CLI
 """
 import asyncio
+import sys
 from src.parser.parser import Parser
 from src.commands.executor import CommandExecutor
 from src.core.context import Context
 from src.core.browser import BrowserManager
 from src.core.variable_expander import VariableExpander
+from src.core.completer import SelectorCompleter
+from src.core.storage import StorageManager
+
+# Try to import readline for autocomplete
+try:
+    import readline
+    READLINE_AVAILABLE = True
+except ImportError:
+    READLINE_AVAILABLE = False
+    print("Warning: readline not available. Tab completion disabled.")
 
 
 class SelectorREPL:
@@ -17,7 +28,38 @@ class SelectorREPL:
         self.executor = CommandExecutor()
         self.context = Context()
         self.variable_expander = VariableExpander()
+        self.storage = StorageManager()
         self.running = False
+
+        # Setup autocomplete
+        if READLINE_AVAILABLE:
+            self._setup_readline()
+
+    def _setup_readline(self):
+        """Setup readline for autocomplete"""
+        # Create completer
+        self.completer = SelectorCompleter(
+            context=self.context,
+            storage=self.storage
+        )
+
+        # Set completer
+        readline.set_completer(self.completer.complete)
+
+        # Set delimiters (what breaks words)
+        readline.set_completer_delims(' \t\n=!<>()[]{}')
+
+        # Enable tab completion
+        try:
+            if readline.__doc__ and 'libedit' in readline.__doc__:
+                # macOS uses libedit
+                readline.parse_and_bind("bind ^I rl_complete")
+            else:
+                # Linux/Windows use GNU readline
+                readline.parse_and_bind("tab: complete")
+        except:
+            # Fallback
+            readline.parse_and_bind("tab: complete")
 
     async def run(self):
         """Main REPL loop"""

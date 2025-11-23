@@ -35,6 +35,16 @@ class TokenType(Enum):
     MACROS = auto()
     EXEC = auto()
 
+    # Phase 5 - Advanced Features
+    HIGHLIGHT = auto()
+    UNHIGHLIGHT = auto()
+    UNION = auto()
+    INTERSECT = auto()
+    DIFFERENCE = auto()
+    UNIQUE = auto()
+    HISTORY = auto()
+    BANG = auto()  # ! for history (!n, !!)
+
     # Element types
     INPUT = auto()
     BUTTON = auto()
@@ -129,6 +139,15 @@ class Lexer:
         'run': TokenType.RUN,
         'macros': TokenType.MACROS,
         'exec': TokenType.EXEC,
+
+        # Phase 5 - Advanced Features
+        'highlight': TokenType.HIGHLIGHT,
+        'unhighlight': TokenType.UNHIGHLIGHT,
+        'union': TokenType.UNION,
+        'intersect': TokenType.INTERSECT,
+        'difference': TokenType.DIFFERENCE,
+        'unique': TokenType.UNIQUE,
+        'history': TokenType.HISTORY,
 
         # Element types
         'input': TokenType.INPUT,
@@ -229,6 +248,12 @@ class Lexer:
             if self._current_char() == '!' and self._peek() == '=':
                 tokens.append(Token(TokenType.NOT_EQUALS, '!=', self.position))
                 self.position += 2
+                continue
+
+            # Bang (history commands: !n or !!)
+            if self._current_char() == '!':
+                tokens.append(Token(TokenType.BANG, '!', self.position))
+                self.position += 1
                 continue
 
             # Left parenthesis

@@ -38,6 +38,43 @@ class Context:
         """Add command to history"""
         self.history.append(command)
 
+    def get_history(self, count: Optional[int] = None) -> List[str]:
+        """Get command history
+
+        Args:
+            count: Number of recent commands to return. If None, returns all.
+
+        Returns:
+            List of command strings
+        """
+        if count is None:
+            return self.history.copy()
+        else:
+            return self.history[-count:] if count > 0 else []
+
+    def get_history_command(self, index: int) -> Optional[str]:
+        """Get command at specific history index (0-based)
+
+        Args:
+            index: Index in history (0 = first command)
+
+        Returns:
+            Command string or None if index out of range
+        """
+        if 0 <= index < len(self.history):
+            return self.history[index]
+        return None
+
+    def get_last_command(self) -> Optional[str]:
+        """Get the last command in history
+
+        Returns:
+            Last command string or None if history is empty
+        """
+        if self.history:
+            return self.history[-1]
+        return None
+
     def update_elements(self, elements: List[Element]):
         """Update all elements from scan"""
         self.all_elements = elements

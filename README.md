@@ -1,8 +1,8 @@
-# Selector CLI - Phase 1 MVP
+# Selector CLI - Interactive Web Element Selection Tool
 
 Interactive command-line tool for web element selection and manipulation.
 
-## Features (Phase 1)
+## Features
 
 - Interactive REPL with contextual prompt
 - Browser control (open URLs)
@@ -10,6 +10,10 @@ Interactive command-line tool for web element selection and manipulation.
 - Collection management (add, remove, clear)
 - Simple WHERE clause filtering (=, !=)
 - Element querying (list, show, count)
+- **Visual feedback** - Highlight elements in browser (Phase 5)
+- **Set operations** - Union, intersect, difference for collections (Phase 5)
+- **Command history** - History viewing and command replay (Phase 5)
+- **Tab completion** - Auto-complete commands, element types, field names, and more (Phase 5)
 
 ## Installation
 
@@ -55,6 +59,42 @@ show                    Show collection details
 show <target>           Show element details
 count                   Count collection elements
 ```
+
+### Visual Feedback (Phase 5)
+```
+highlight               Highlight current collection
+highlight <target>      Highlight specific elements
+highlight <target> where <condition>
+unhighlight             Remove all highlights
+```
+
+### Set Operations (Phase 5)
+```
+union <collection>      Combine with saved collection
+intersect <collection>  Keep only common elements
+difference <collection> Remove elements in other collection
+unique                  Remove duplicates
+```
+
+### Command History (Phase 5)
+```
+history                 Show all commands
+history <n>             Show last n commands
+!n                      Execute command at index n
+!!                      Execute last command
+```
+
+### Tab Completion (Phase 5)
+Press **Tab** at any time to auto-complete:
+- **Commands**: `ad<TAB>` → `add`, `hi<TAB>` → `highlight`
+- **Element types**: `add in<TAB>` → `add input`
+- **Field names**: `where ty<TAB>` → `where type`
+- **Operators**: `type con<TAB>` → `type contains`
+- **Export formats**: `export pla<TAB>` → `export playwright`
+- **Collection names**: `union te<TAB>` → shows saved collections starting with "te"
+- **File paths**: `exec my<TAB>` → completes file paths
+
+Tab completion is context-aware and suggests relevant options based on what you've already typed.
 
 ### Targets
 ```

@@ -56,6 +56,10 @@ class ElementCollection:
         """Get element count"""
         return len(self.elements)
 
+    def get_all(self) -> List[Element]:
+        """Get all elements"""
+        return self.elements.copy()
+
     def is_empty(self) -> bool:
         """Check if collection is empty"""
         return len(self.elements) == 0
@@ -84,6 +88,41 @@ class ElementCollection:
             if not other.contains(elem):
                 result.add(elem)
         return result
+
+    def unique(self) -> 'ElementCollection':
+        """Remove duplicates (based on element index)"""
+        # ElementCollection already maintains uniqueness via _index dict
+        # But create a new collection to be consistent with other set operations
+        result = ElementCollection()
+        for elem in self.elements:
+            result.add(elem)
+        return result
+
+    def union_in_place(self, other: 'ElementCollection') -> None:
+        """Union with another collection (modifies current collection)"""
+        for elem in other.elements:
+            self.add(elem)
+        self.modified_at = datetime.now()
+
+    def intersect_in_place(self, other: 'ElementCollection') -> None:
+        """Intersect with another collection (modifies current collection)"""
+        to_remove = []
+        for elem in self.elements:
+            if not other.contains(elem):
+                to_remove.append(elem)
+        for elem in to_remove:
+            self.remove(elem)
+        self.modified_at = datetime.now()
+
+    def difference_in_place(self, other: 'ElementCollection') -> None:
+        """Difference with another collection (modifies current collection)"""
+        to_remove = []
+        for elem in self.elements:
+            if other.contains(elem):
+                to_remove.append(elem)
+        for elem in to_remove:
+            self.remove(elem)
+        self.modified_at = datetime.now()
 
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization"""

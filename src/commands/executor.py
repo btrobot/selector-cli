@@ -11,6 +11,7 @@ from src.core.context import Context
 from src.core.scanner import ElementScanner
 from src.core.storage import StorageManager  # Phase 4
 from src.core.variable_expander import VariableExpander  # Phase 4
+from src.core.highlighter import Highlighter  # Phase 5
 # Phase 3: Import generators
 from src.generators import (
     PlaywrightGenerator, SeleniumGenerator, PuppeteerGenerator,
@@ -67,6 +68,24 @@ class CommandExecutor:
             return await self._execute_macros(command, context)
         elif command.verb == 'exec':
             return await self._execute_exec(command, context)
+        elif command.verb == 'highlight':
+            return await self._execute_highlight(command, context)
+        elif command.verb == 'unhighlight':
+            return await self._execute_unhighlight(command, context)
+        elif command.verb == 'union':
+            return await self._execute_union(command, context)
+        elif command.verb == 'intersect':
+            return await self._execute_intersect(command, context)
+        elif command.verb == 'difference':
+            return await self._execute_difference(command, context)
+        elif command.verb == 'unique':
+            return await self._execute_unique(command, context)
+        elif command.verb == 'history':
+            return await self._execute_history(command, context)
+        elif command.verb == 'bang_n':
+            return await self._execute_bang_n(command, context)
+        elif command.verb == 'bang_last':
+            return await self._execute_bang_last(command, context)
         elif command.verb == 'help':
             return await self._execute_help(command, context)
         else:
@@ -499,6 +518,226 @@ class CommandExecutor:
         except Exception as e:
             return f"Error executing script: {e}"
 
+    async def _execute_highlight(self, command: Command, context: Context) -> str:
+        """Execute highlight command"""
+        if not context.browser or not context.browser.page:
+            return "Error: No page loaded"
+
+        # Get or create highlighter
+        if not hasattr(context, 'highlighter') or context.highlighter is None:
+            context.highlighter = Highlighter(context.browser.page)
+
+        # Case 1: highlight (no target) - highlight current collection
+        if not command.target:
+            elements = context.collection.get_all()
+            if not elements:
+                return "No elements in collection to highlight"
+
+            count = await context.highlighter.highlight_elements(elements)
+            return f"Highlighted {count} element(s) from collection"
+
+        # Case 2: highlight <target> [where <condition>]
+        # Get elements from all_elements based on target
+        elements = self._resolve_target_elements(
+            command.target,
+            context.all_elements,
+            context.collection
+        )
+
+        # Apply condition filter if present
+        if command.condition_tree:
+            elements = [
+                elem for elem in elements
+                if self._evaluate_condition_tree(elem, command.condition_tree)
+            ]
+
+        if not elements:
+            return "No elements matched the criteria"
+
+        count = await context.highlighter.highlight_elements(elements)
+        return f"Highlighted {count} element(s)"
+
+    async def _execute_unhighlight(self, command: Command, context: Context) -> str:
+        """Execute unhighlight command"""
+        if not context.browser or not context.browser.page:
+            return "Error: No page loaded"
+
+        # Get highlighter if exists
+        if not hasattr(context, 'highlighter') or context.highlighter is None:
+            return "No elements currently highlighted"
+
+        count = await context.highlighter.unhighlight_all()
+        return f"Removed highlights from {count} element(s)"
+
+    async def _execute_union(self, command: Command, context: Context) -> str:
+        """Execute union command - combine with saved collection"""
+        if not command.argument:
+            return "Error: No collection name specified"
+
+        collection_name = command.argument
+
+        # Load the other collection
+        try:
+            loaded_collection = self.storage.load_collection(collection_name)
+        except FileNotFoundError:
+            return f"Error: Collection '{collection_name}' not found"
+        except Exception as e:
+            return f"Error loading collection: {e}"
+
+        # Get current count
+        before_count = context.collection.count()
+
+        # Perform union (in-place)
+        context.collection.union_in_place(loaded_collection)
+
+        # Calculate added count
+        after_count = context.collection.count()
+        added = after_count - before_count
+
+        return f"Union with '{collection_name}': Added {added} element(s). Total: {after_count}"
+
+    async def _execute_intersect(self, command: Command, context: Context) -> str:
+        """Execute intersect command - keep only common elements"""
+        if not command.argument:
+            return "Error: No collection name specified"
+
+        collection_name = command.argument
+
+        # Load the other collection
+        try:
+            loaded_collection = self.storage.load_collection(collection_name)
+        except FileNotFoundError:
+            return f"Error: Collection '{collection_name}' not found"
+        except Exception as e:
+            return f"Error loading collection: {e}"
+
+        # Get current count
+        before_count = context.collection.count()
+
+        # Perform intersection (in-place)
+        context.collection.intersect_in_place(loaded_collection)
+
+        # Calculate result
+        after_count = context.collection.count()
+        removed = before_count - after_count
+
+        return f"Intersect with '{collection_name}': Removed {removed} element(s). Total: {after_count}"
+
+    async def _execute_difference(self, command: Command, context: Context) -> str:
+        """Execute difference command - remove elements in other collection"""
+        if not command.argument:
+            return "Error: No collection name specified"
+
+        collection_name = command.argument
+
+        # Load the other collection
+        try:
+            loaded_collection = self.storage.load_collection(collection_name)
+        except FileNotFoundError:
+            return f"Error: Collection '{collection_name}' not found"
+        except Exception as e:
+            return f"Error loading collection: {e}"
+
+        # Get current count
+        before_count = context.collection.count()
+
+        # Perform difference (in-place)
+        context.collection.difference_in_place(loaded_collection)
+
+        # Calculate result
+        after_count = context.collection.count()
+        removed = before_count - after_count
+
+        return f"Difference with '{collection_name}': Removed {removed} element(s). Total: {after_count}"
+
+    async def _execute_unique(self, command: Command, context: Context) -> str:
+        """Execute unique command - remove duplicates"""
+        before_count = context.collection.count()
+
+        # ElementCollection already maintains uniqueness via _index
+        # So this is mostly a no-op, but we'll report the current state
+        # In case we want to add support for different uniqueness criteria later
+
+        after_count = context.collection.count()
+        removed = before_count - after_count
+
+        if removed == 0:
+            return f"Collection already unique. Total: {after_count}"
+        else:
+            return f"Removed {removed} duplicate(s). Total: {after_count}"
+
+    async def _execute_history(self, command: Command, context: Context) -> str:
+        """Execute history command - show command history"""
+        if command.argument:
+            # history n - show last n commands
+            try:
+                count = int(command.argument)
+                history = context.get_history(count)
+            except ValueError:
+                return f"Error: Invalid number '{command.argument}'"
+        else:
+            # history - show all commands
+            history = context.get_history()
+
+        if not history:
+            return "No commands in history"
+
+        # Format history with line numbers
+        lines = []
+        # Calculate starting index (if showing subset)
+        total_history = len(context.history)
+        start_index = total_history - len(history)
+
+        for i, cmd in enumerate(history):
+            index = start_index + i
+            lines.append(f"  {index:4d}  {cmd}")
+
+        return "Command History:\n" + "\n".join(lines)
+
+    async def _execute_bang_n(self, command: Command, context: Context) -> str:
+        """Execute !n command - execute command at index n"""
+        if not command.argument:
+            return "Error: No index specified"
+
+        try:
+            index = int(command.argument)
+        except ValueError:
+            return f"Error: Invalid index '{command.argument}'"
+
+        # Get command from history
+        cmd_str = context.get_history_command(index)
+        if cmd_str is None:
+            total = len(context.history)
+            return f"Error: No command at index {index}. History has {total} commands (0-{total-1})"
+
+        # Parse and execute the historical command
+        try:
+            print(f"Executing: {cmd_str}")
+            cmd = self.parser.parse(cmd_str)
+            result = await self.execute(cmd, context)
+            return result
+        except Exception as e:
+            return f"Error executing command '{cmd_str}': {e}"
+
+    async def _execute_bang_last(self, command: Command, context: Context) -> str:
+        """Execute !! command - execute last command"""
+        # Get last command (excluding the !! itself)
+        # History already contains !!, so we need the one before that
+        if len(context.history) < 2:
+            return "Error: No previous command to execute"
+
+        # Get second-to-last command (last is the !! itself)
+        cmd_str = context.history[-2]
+
+        # Parse and execute
+        try:
+            print(f"Executing: {cmd_str}")
+            cmd = self.parser.parse(cmd_str)
+            result = await self.execute(cmd, context)
+            return result
+        except Exception as e:
+            return f"Error executing command '{cmd_str}': {e}"
+
     async def _execute_help(self, command: Command, context: Context) -> str:
         """Execute help command"""
         return """
@@ -523,6 +762,24 @@ Query Commands:
   show <target>           Show element details
   count                   Count collection elements
 
+Visual Feedback (Phase 5):
+  highlight               Highlight current collection
+  highlight <target>      Highlight specific elements
+  highlight <target> where <condition>
+  unhighlight             Remove all highlights
+
+Set Operations (Phase 5):
+  union <collection>      Combine with saved collection
+  intersect <collection>  Keep only common elements
+  difference <collection> Remove elements in other collection
+  unique                  Remove duplicates
+
+Command History (Phase 5):
+  history                 Show all commands
+  history <n>             Show last n commands
+  !n                      Execute command at index n
+  !!                      Execute last command
+
 Targets:
   input, button, select, textarea, a
   [5]                     Single index
@@ -543,6 +800,7 @@ Examples:
   scan
   add input
   add button where type="submit"
+  highlight
   list
   show [0]
   count
