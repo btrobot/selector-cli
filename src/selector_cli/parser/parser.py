@@ -2,8 +2,8 @@
 Parser for Selector CLI (Phase 2)
 """
 from typing import List, Optional, Any
-from src.parser.lexer import Lexer, Token, TokenType
-from src.parser.command import (
+from .lexer import Lexer, Token, TokenType
+from .command import (
     Command, Target, TargetType,
     Condition, Operator,  # Phase 1
     ConditionNode, ConditionType, LogicOp  # Phase 2

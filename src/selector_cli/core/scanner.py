@@ -3,8 +3,8 @@ Element scanner for Selector CLI
 """
 from typing import List, Optional, Tuple
 from playwright.async_api import Page, Locator
-from src.core.element import Element
-from src.core.locator.strategy import LocationStrategyEngine
+from .element import Element
+from .locator.strategy import LocationStrategyEngine
 import uuid
 
 

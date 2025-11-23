@@ -11,7 +11,7 @@ with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='selector-cli',
-    version='1.0.0',
+    version='1.0.6',
     author='Selector CLI Team',
     author_email='selector-cli@example.com',
     maintainer='Selector CLI Team',

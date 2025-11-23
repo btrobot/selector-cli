@@ -3,7 +3,7 @@ Code generator base class for Selector CLI
 """
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from src.core.element import Element
+from ..core.element import Element
 
 
 class CodeGenerator(ABC):

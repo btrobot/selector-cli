@@ -5,8 +5,8 @@ import json
 import csv
 from typing import List, Optional
 from io import StringIO
-from src.core.element import Element
-from src.generators.base import CodeGenerator
+from ..core.element import Element
+from .base import CodeGenerator
 
 
 class JSONExporter(CodeGenerator):

@@ -3,7 +3,7 @@ Highlighter utility for visual feedback
 """
 from typing import List, Optional, Set
 from playwright.async_api import Page, Locator
-from src.core.element import Element
+from .element import Element
 
 
 class Highlighter:

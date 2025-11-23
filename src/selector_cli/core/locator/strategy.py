@@ -1,16 +1,24 @@
 """
-Location Strategy Engine
-
-Core engine that finds the optimal locator (CSS or XPath) for an element
-using multi-strategy approach with uniqueness verification.
+Location Strategy Engine - Phase 3 with Logging
+Enhanced version with debug logging and performance tracking
 """
 
 from enum import Enum
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
-from src.core.element import Element
-from src.core.locator.cost import calculate_total_cost, STRATEGY_COSTS, CostCalculator
-from src.core.locator.validator import UniquenessValidator
+from ..element import Element
+from .cost import calculate_total_cost, STRATEGY_COSTS, CostCalculator
+from .validator import UniquenessValidator
+import logging
+
+# Setup logger
+logger = logging.getLogger('locator.strategy')
+logger.setLevel(logging.DEBUG)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+    logger.addHandler(handler)
 
 
 class LocatorType(Enum):
@@ -173,7 +181,7 @@ class LocationStrategyEngine:
             {
                 'name': 'NTH_OF_TYPE',
                 'priority': StrategyPriority.NTH_OF_TYPE,
-                'generator': self._generate_nth_of_type_selector,
+                'generator': self._generate_nth_of_type_selector,  # Note: async method
                 'applies_to': ['*'],
             },
             # P3: Fallback strategies
@@ -220,7 +228,23 @@ class LocationStrategyEngine:
             },
         ]
 
-    # CSS Generator Methods (Placeholders - actual implementation will come later)
+    def _escape_xpath_string(self, text: str) -> str:
+        """Simple XPath string escaping - use single quotes, then double if needed."""
+        if not text:
+            return "''"
+
+        # No single quotes - use single quotes (most common)
+        if "'" not in text:
+            return f"'{text}'"
+
+        # No double quotes - use double quotes
+        if '"' not in text:
+            return f'"{text}"'
+
+        # Has both quotes - simplified (will be enhanced in future)
+        return f"concat('{text}')"
+
+    # CSS Generator Methods
     def _generate_id_selector(self, element: Element) -> Optional[str]:
         """Generate ID selector: #element-id"""
         if element.id:
@@ -273,14 +297,14 @@ class LocationStrategyEngine:
 
     # P2: Additional CSS strategies for Phase 2
     def _generate_aria_label_selector(self, element: Element) -> Optional[str]:
-        """Generate aria-label selector: [aria-label=\"value\"]"""
+        """Generate aria-label selector: [aria-label="value"]"""
         aria_label = element.attributes.get('aria-label')
         if aria_label:
             return f'[aria-label="{aria_label}"]'
         return None
 
     def _generate_title_attr_selector(self, element: Element) -> Optional[str]:
-        """Generate title attribute selector: [title=\"value\"]"""
+        """Generate title attribute selector: [title="value"]"""
         title = element.attributes.get('title')
         if title:
             return f'[title="{title}"]'
@@ -294,54 +318,19 @@ class LocationStrategyEngine:
         return None
 
     async def _generate_nth_of_type_selector(self, element: Element, page) -> Optional[str]:
+        """Generate nth-of-type selector: tag:nth-of-type(n)
+
+        Note: This method is async and needs the page parameter to calculate
+        the actual position among siblings.
         """
-        Generate nth-of-type selector: tag:nth-of-type(n)
-
-        This is a fallback strategy that uses the element's position among
-        siblings with the same tag name. Calculated dynamically using Playwright.
-
-        Args:
-            element: Element to locate
-            page: Playwright page object
-
-        Returns:
-            nth-of-type selector or None if calculation fails
-        """
-        try:
-            if not element.locator:
-                return None
-
-            # Get all sibling elements with the same tag
-            siblings_locator = element.locator.locator(f'xpath=../{element.tag}')
-            count = await siblings_locator.count()
-
-            if count == 0:
-                return None
-
-            if count == 1:
-                # Only one element of this type, return simple selector
-                return f'{element.tag}:nth-of-type(1)'
-
-            # Find the position of our element among siblings
-            for i in range(count):
-                sibling = siblings_locator.nth(i)
-                if await sibling.evaluate('(el, target) => el === target', await element.handle):
-                    position = i + 1  # XPath is 1-indexed
-                    return f'{element.tag}:nth-of-type({position})'
-
-            return None
-
-        except Exception:
-            # If anything fails, return basic selector
-            return f'{element.tag}:nth-of-type(1)'  # Placeholder - needs sibling position
+        # Placeholder - will be implemented with page context
+        return f'{element.tag}:nth-of-type(1)'
 
     def _generate_type_only_selector(self, element: Element) -> Optional[str]:
-        """Generate type-only selector: tag[type=\"value\"]"""
+        """Generate type-only selector: tag[type="value"]"""
         if element.type:
             return f'{element.tag}[type="{element.type}"]'
         return None
-
-
 
     # XPath Generator Methods
     def _generate_xpath_id_selector(self, element: Element) -> Optional[str]:
@@ -377,83 +366,6 @@ class LocationStrategyEngine:
         # to build the full path like /html/body/div[2]/button[1]
         return f'//{element.tag}[1]'
 
-    def _escape_xpath_string(self, text: str) -> str:
-        """
-        Escape string for use in XPath expressions.
-
-        XPath strings can use single or double quotes.
-        If the string contains both, we need to use concat().
-
-        Simple approach:
-        - If string has no quotes: use double quotes
-        - If string has single quotes only: use double quotes
-        - If string has double quotes only: use single quotes
-        - If string has both: use concat() to combine parts
-
-        Args:
-            text: String to escape
-
-        Returns:
-            Escaped string suitable for XPath
-        """
-        if not text:
-            return '""'
-
-        # Check if string has both single and double quotes
-        has_single = "'" in text
-        has_double = '"' in text
-
-        # If no quotes or only single quotes, use double quotes
-        if not has_double:
-            return f'"{text}"'
-
-        # If only double quotes (no single quotes), use single quotes
-        if not has_single:
-            return f"'{text}'"
-
-        # Has both single and double quotes, need concat()
-        # Strategy: split by single quotes, wrap each part in double quotes
-        # then join with ',"'"','
-        parts = text.split("'")
-        quoted_parts = [f'"{part}"' for part in parts]
-
-        # Join with ', "\'", ' which represents a single quote string
-        return f"concat({', ' \"'\" ', '.join(quoted_parts)})"
-
-    def _escape_xpath_string_alternative(self, text: str) -> str:
-        """
-        Alternative implementation that's simpler.
-        Just always use concat if both quotes are present.
-        """
-        if not text:
-            return '""'
-
-        has_single = "'" in text
-        has_double = '"' in text
-
-        # Has both quotes - use concat with single quotes around double quotes
-        if has_single and has_double:
-            # Split by double quotes
-            parts = text.split('"')
-            if len(parts) == 3 and parts[0] and parts[1] and parts[2]:
-                # Format: part1 " part2
-                return f'concat("{parts[0]}", ' \"'\" ', "{parts[1]}", ' \"'\" ', "{parts[2]}")'
-            else:
-                # Complex case, just split and wrap all in double quotes
-                quoted_parts = [f'"{part}"' for part in parts if part]
-                return f"concat({', '}, ' \"'\" ', '.join(quoted_parts)})"
-
-        # Has only single quotes, use double quotes
-        if has_single:
-            return f'"{text}"'
-
-        # Has only double quotes, use single quotes
-        if has_double:
-            return f"'{text}'"
-
-        # No quotes, use double quotes
-        return f'"{text}"'
-
     async def find_best_locator(self, element: Element, page) -> Optional[LocationResult]:
         """
         Find the best locator for an element
@@ -465,15 +377,24 @@ class LocationStrategyEngine:
         Returns:
             LocationResult with optimal locator, or None if not found
         """
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Finding locator for <{element.tag}>")
+        logger.info(f"{'='*60}")
+
         # Phase 1: Try CSS strategies in priority order
+        logger.debug("[PHASE 1] Trying CSS strategies...")
         css_result = await self._try_css_strategies(element, page)
         if css_result and css_result.is_unique:
+            logger.info(f"✓ Selected CSS: {css_result.selector}")
             return css_result
 
-        # Phase 2: Try XPath strategies
+        logger.debug("[PHASE 2] CSS failed, trying XPath strategies...")
         xpath_result = await self._try_xpath_strategies(element, page)
         if xpath_result and xpath_result.is_unique:
+            logger.info(f"✓ Selected XPath: {xpath_result.selector}")
             return xpath_result
+
+        logger.warning("! No unique locator found")
 
         # Phase 3: Best effort fallback (not yet implemented)
         # This will try all strategies and return the best one
@@ -492,31 +413,30 @@ class LocationStrategyEngine:
         # Sort by priority (lower value = higher priority)
         applicable_strategies.sort(key=lambda s: s['priority'].value)
 
+        logger.debug(f"Trying {len(applicable_strategies)} CSS strategies in order...")
         attempted = []
 
         for strategy in applicable_strategies:
-            # Generate selector (handle both sync and async generators)
+            # Generate selector
             generator = strategy['generator']
-
-            # Check if generator is async (requires page parameter)
-            import inspect
-            if inspect.iscoroutinefunction(generator) or 'page' in inspect.signature(generator).parameters:
-                # Async generator (like NTH_OF_TYPE)
+            if 'page' in __import__('inspect').signature(generator).parameters:
                 selector = await generator(element, page)
             else:
-                # Sync generator
                 selector = generator(element)
 
             if selector is None:
+                logger.debug(f"  [SKIP] {strategy['name']}: not applicable")
                 continue
+
+            # Log attempt
+            logger.debug(f"  [TRY] {strategy['name']:20s} → {selector}")
 
             # Try to validate uniqueness
             is_unique = await self._validate_selector(selector, element, page)
 
             if is_unique:
-                # Calculate cost
                 cost = calculate_total_cost(STRATEGY_COSTS[strategy['name']], selector)
-
+                logger.debug(f"  [OK]  {strategy['name']:20s} (cost: {cost:.3f})")
                 return LocationResult(
                     type=LocatorType.CSS,
                     selector=selector,
@@ -525,17 +445,14 @@ class LocationStrategyEngine:
                     is_unique=True,
                 )
             else:
+                logger.debug(f"  [FAIL] {strategy['name']:20s} (not unique)")
                 attempted.append({
                     'selector': selector,
                     'strategy': strategy['name'],
                     'reason': 'not_unique'
                 })
 
-        # If we get here, none were unique
-        if attempted:
-            # Store fallbacks for future use
-            pass
-
+        logger.debug(f"All CSS strategies failed ({len(attempted)} attempts)")
         return None
 
     async def _try_xpath_strategies(self, element: Element, page) -> Optional[LocationResult]:
@@ -546,18 +463,26 @@ class LocationStrategyEngine:
         ]
 
         applicable_strategies.sort(key=lambda s: s['priority'].value)
+        logger.debug(f"Trying {len(applicable_strategies)} XPath strategies...")
 
         for strategy in applicable_strategies:
-            selector = strategy['generator'](element)
+            generator = strategy['generator']
+            if 'page' in __import__('inspect').signature(generator).parameters:
+                selector = await generator(element, page)
+            else:
+                selector = generator(element)
+
             if selector is None:
                 continue
 
-            # Validate uniqueness (placeholder - needs async)
+            logger.debug(f"  [TRY] {strategy['name']:20s} → {selector}")
+
+            # Validate uniqueness
             is_unique = await self._validate_selector(selector, element, page, is_xpath=True)
 
             if is_unique:
                 cost = calculate_total_cost(STRATEGY_COSTS[strategy['name']], selector)
-
+                logger.debug(f"  [OK]  {strategy['name']:20s} (cost: {cost:.3f})")
                 return LocationResult(
                     type=LocatorType.XPATH,
                     selector=selector,
@@ -566,23 +491,12 @@ class LocationStrategyEngine:
                     is_unique=True,
                 )
 
+        logger.debug("All XPath strategies failed")
         return None
 
     async def _validate_selector(self, selector: str, element: Element, page, is_xpath: bool = False) -> bool:
-        """
-        Validate that selector uniquely identifies the element
-
-        Uses strict uniqueness validation (Level 3) which verifies:
-        1. Selector matches exactly one element on the page
-        2. The matched element is the target element
-
-        Args:
-            selector: CSS or XPath selector string
-            element: Target element to validate against
-            page: Playwright page object
-            is_xpath: True if selector is XPath, False if CSS
-
-        Returns:
-            True if selector uniquely identifies the target element
-        """
-        return await self.validator.is_strictly_unique(selector, element, page, is_xpath)
+        """Validate that selector uniquely identifies the element"""
+        logger.debug(f"    [VALIDATE] {'XPath' if is_xpath else 'CSS'}: {selector}")
+        result = await self.validator.is_strictly_unique(selector, element, page, is_xpath)
+        logger.debug(f"    [RESULT] {'unique' if result else 'not unique'}")
+        return result

@@ -10,17 +10,17 @@ from functools import wraps
 from typing import Callable, Any, Optional
 
 
-# Configure logger
+# Configure logger (default to INFO, can be changed via functions)
 logger = logging.getLogger('locator.strategy')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)  # Changed from DEBUG to INFO
 
 # Create handler if none exists
 if not logger.handlers:
     # Create a handler that writes to stderr (for CLI output)
     handler = logging.StreamHandler(sys.stderr)
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(logging.INFO)  # Match logger level
     formatter = logging.Formatter(
-        '[%(levelname)s] %(message)s'
+        '[%(asctime)s] [%(levelname)s] %(name)s: %(message)s'
     )
     handler.setFormatter(formatter)
     logger.addHandler(handler)

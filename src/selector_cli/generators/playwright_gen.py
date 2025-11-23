@@ -2,8 +2,8 @@
 Playwright code generator for Python
 """
 from typing import List, Optional, Dict
-from src.core.element import Element
-from src.generators.base import CodeGenerator
+from ..core.element import Element
+from .base import CodeGenerator
 
 
 class PlaywrightGenerator(CodeGenerator):

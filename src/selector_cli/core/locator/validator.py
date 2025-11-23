@@ -8,7 +8,7 @@ identifies the target element without intersecting with other elements.
 from typing import TYPE_CHECKING, Optional, Dict
 
 if TYPE_CHECKING:
-    from src.core.element import Element
+    from ...core.element import Element
 
 
 class UniquenessValidator:

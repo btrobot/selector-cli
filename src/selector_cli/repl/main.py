@@ -3,13 +3,15 @@ REPL (Read-Eval-Print Loop) for Selector CLI
 """
 import asyncio
 import sys
-from src.parser.parser import Parser
-from src.commands.executor import CommandExecutor
-from src.core.context import Context
-from src.core.browser import BrowserManager
-from src.core.variable_expander import VariableExpander
-from src.core.completer import SelectorCompleter
-from src.core.storage import StorageManager
+import logging
+from ..parser.parser import Parser
+from ..commands.executor import CommandExecutor
+from ..core.context import Context
+from ..core.browser import BrowserManager
+from ..core.variable_expander import VariableExpander
+from ..core.completer import SelectorCompleter
+from ..core.storage import StorageManager
+from ..core.locator.logging import enable_debug_logging, disable_debug_logging
 
 # Try to import readline for autocomplete
 try:
@@ -23,17 +25,22 @@ except ImportError:
 class SelectorREPL:
     """Interactive REPL for Selector CLI"""
 
-    def __init__(self):
+    def __init__(self, debug: bool = False):
+        self.debug = debug
         self.parser = Parser()
         self.executor = CommandExecutor()
         self.context = Context()
         self.variable_expander = VariableExpander()
         self.storage = StorageManager()
         self.running = False
+        self.logger = logging.getLogger('selector.repl')
 
-        # Setup autocomplete
-        if READLINE_AVAILABLE:
-            self._setup_readline()
+        # Setup locator logging based on debug flag
+        if self.debug:
+            enable_debug_logging()
+            self.logger.debug("SelectorREPL initialized in debug mode")
+        else:
+            disable_debug_logging()
 
     def _setup_readline(self):
         """Setup readline for autocomplete"""

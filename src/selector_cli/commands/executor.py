@@ -2,18 +2,18 @@
 Command executor for Selector CLI
 """
 from typing import Optional, Any
-from src.parser.command import (
+from ..parser.command import (
     Command, TargetType, Operator,
     ConditionNode, ConditionType, LogicOp  # Phase 2
 )
-from src.parser.parser import Parser  # For parsing macro commands
-from src.core.context import Context
-from src.core.scanner import ElementScanner
-from src.core.storage import StorageManager  # Phase 4
-from src.core.variable_expander import VariableExpander  # Phase 4
-from src.core.highlighter import Highlighter  # Phase 5
+from ..parser.parser import Parser  # For parsing macro commands
+from ..core.context import Context
+from ..core.scanner import ElementScanner
+from ..core.storage import StorageManager  # Phase 4
+from ..core.variable_expander import VariableExpander  # Phase 4
+from ..core.highlighter import Highlighter  # Phase 5
 # Phase 3: Import generators
-from src.generators import (
+from ..generators import (
     PlaywrightGenerator, SeleniumGenerator, PuppeteerGenerator,
     JSONExporter, CSVExporter, YAMLExporter
 )

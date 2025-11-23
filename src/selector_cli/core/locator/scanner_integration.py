@@ -4,9 +4,9 @@ Connects the LocationStrategyEngine with the element scanner system
 """
 
 from typing import List, Optional, Dict, Any
-from src.core.element import Element
-from src.core.locator.strategy import LocationStrategyEngine, LocationResult
-from src.core.locator.logging import logger
+from ..element import Element
+from ...strategy import LocationStrategyEngine, LocationResult
+from .logging import logger
 from playwright.async_api import Page
 
 
@@ -134,7 +134,7 @@ class LocatorIntegrationEngine:
 
     def enable_debug_logging(self):
         """Enable debug logging for detailed output"""
-        from src.core.locator.logging import enable_debug_logging
+        from .logging import enable_debug_logging
         enable_debug_logging()
 
     def reset_stats(self):

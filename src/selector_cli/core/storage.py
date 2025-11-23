@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from src.core.element import Element
+from .element import Element
 
 
 class StorageManager:
