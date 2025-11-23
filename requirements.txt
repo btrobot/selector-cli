@@ -1,1 +1,4 @@
 playwright>=1.40.0
+
+# Tab completion support (Windows only - optional on Linux/macOS)
+pyreadline3>=3.4.1; sys_platform == 'win32'

@@ -25,6 +25,11 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
+**Note for Windows users**: Tab completion will be automatically enabled via `pyreadline3`. If you see "Warning: readline not available", run:
+```bash
+pip install pyreadline3
+```
+
 ## Usage
 
 ```bash
