@@ -64,44 +64,52 @@ class Highlighter:
                         error_messages.append(f"[{i}] No selector available")
                     continue
 
-                # Create locator
+                # Create locator - try CSS first, then XPath
+                locator = None
                 if elem.selector:
-                    locator = self.page.locator(elem.selector)
-                else:
-                    locator = self.page.locator(f"xpath={elem.xpath}")
+                    try:
+                        locator = self.page.locator(elem.selector).first
+                        # Verify it exists
+                        elem_count = await self.page.locator(elem.selector).count()
+                        if elem_count == 0:
+                            locator = None
+                    except Exception:
+                        locator = None
 
-                # Check if element exists
-                element_count = await locator.count()
-                if element_count == 0:
+                # Fallback to XPath if CSS failed or selector is not unique
+                if not locator and elem.xpath:
+                    try:
+                        locator = self.page.locator(f"xpath={elem.xpath}").first
+                    except Exception:
+                        pass
+
+                if not locator:
                     if verbose:
                         failed_elements.append(i)
-                        error_messages.append(f"[{i}] Element not found on page (selector: {selector[:50]}...)")
+                        error_messages.append(f"[{i}] Element not found (selector: {selector[:50]}...)")
                     continue
 
-                # Highlight the element(s)
+                # Highlight the element using .first to avoid strict mode violation
                 await locator.evaluate(
                     f"""
-                    (elements) => {{
-                        const elemArray = Array.isArray(elements) ? elements : [elements];
-                        elemArray.forEach(el => {{
-                            el.style.outline = '3px solid {color_code}';
-                            el.style.outlineOffset = '2px';
-                            el.style.backgroundColor = '{color_code}20';
-                            el.setAttribute('data-selector-highlighted', 'true');
-                        }});
+                    (element) => {{
+                        element.style.outline = '3px solid {color_code}';
+                        element.style.outlineOffset = '2px';
+                        element.style.backgroundColor = '{color_code}20';
+                        element.setAttribute('data-selector-highlighted', 'true');
                     }}
                     """
                 )
 
                 # Track selector
                 self.highlighted_selectors.add(selector)
-                count += element_count
+                count += 1
 
             except Exception as e:
                 # Skip elements that fail to highlight
                 if verbose:
                     failed_elements.append(i)
-                    error_messages.append(f"[{i}] Error: {str(e)[:50]}")
+                    error_messages.append(f"[{i}] Error: {str(e)[:80]}")
                 continue
 
         if verbose:

@@ -1,8 +1,8 @@
 """
 Element scanner for Selector CLI
 """
-from typing import List
-from playwright.async_api import Page
+from typing import List, Optional, Tuple
+from playwright.async_api import Page, Locator
 from src.core.element import Element
 import uuid
 
@@ -32,7 +32,7 @@ class ElementScanner:
 
             for locator in locators:
                 # Build Element object
-                element = await self._build_element(locator, index, elem_type, page.url)
+                element = await self._build_element(locator, index, elem_type, page.url, page)
                 elements.append(element)
                 index += 1
 
@@ -43,7 +43,8 @@ class ElementScanner:
         locator,
         index: int,
         elem_type: str,
-        page_url: str
+        page_url: str,
+        page: Page
     ) -> Element:
         """Build Element object from Playwright locator"""
 
@@ -71,8 +72,8 @@ class ElementScanner:
         value = attributes.get('value', '')
         classes = attributes.get('class', '').split() if attributes.get('class') else []
 
-        # Build selector
-        selector = self._build_selector(tag, attributes)
+        # Build selector with uniqueness verification
+        selector = await self._build_unique_selector(tag, attributes, text, page)
 
         # Build xpath
         xpath = await self._build_xpath(locator)
@@ -108,8 +109,106 @@ class ElementScanner:
             page_url=page_url
         )
 
+    async def _build_unique_selector(
+        self,
+        tag: str,
+        attributes: dict,
+        text: str,
+        page: Page
+    ) -> str:
+        """Build CSS selector that uniquely identifies the element
+
+        Strategy:
+        1. Try ID (most reliable)
+        2. Try unique attribute combinations
+        3. Try nth-child with parent context
+        4. Fallback to basic selector
+
+        Always verify uniqueness before returning.
+        """
+        # Strategy 1: ID - most reliable
+        if 'id' in attributes and attributes['id']:
+            selector = f"#{attributes['id']}"
+            if await self._is_unique_selector(page, selector):
+                return selector
+            # If ID is not unique, fall through to other strategies
+            selector = f"{tag}#{attributes['id']}"
+            if await self._is_unique_selector(page, selector):
+                return selector
+
+        # Strategy 2: Unique attribute combinations
+        selectors_to_try = []
+
+        # Try combinations with increasing specificity
+        base = tag
+
+        # Add type
+        if 'type' in attributes and attributes['type']:
+            type_sel = f'{base}[type="{attributes["type"]}"]'
+
+            # type + name
+            if 'name' in attributes and attributes['name']:
+                selectors_to_try.append(f'{type_sel}[name="{attributes["name"]}"]')
+
+            # type + placeholder
+            if 'placeholder' in attributes and attributes['placeholder']:
+                placeholder = attributes['placeholder'][:30].replace('"', '\\"')
+                selectors_to_try.append(f'{type_sel}[placeholder="{placeholder}"]')
+
+            # type + value
+            if 'value' in attributes and attributes['value']:
+                value = attributes['value'][:30].replace('"', '\\"')
+                selectors_to_try.append(f'{type_sel}[value="{value}"]')
+
+            # Just type
+            selectors_to_try.append(type_sel)
+
+        # name alone
+        if 'name' in attributes and attributes['name']:
+            selectors_to_try.append(f'{base}[name="{attributes["name"]}"]')
+
+        # placeholder alone
+        if 'placeholder' in attributes and attributes['placeholder']:
+            placeholder = attributes['placeholder'][:30].replace('"', '\\"')
+            selectors_to_try.append(f'{base}[placeholder="{placeholder}"]')
+
+        # href for links
+        if 'href' in attributes and attributes['href']:
+            href = attributes['href'][:50].replace('"', '\\"')
+            selectors_to_try.append(f'{base}[href="{href}"]')
+
+        # Try each selector for uniqueness
+        for selector in selectors_to_try:
+            if await self._is_unique_selector(page, selector):
+                return selector
+
+        # Strategy 3: Try with text content (for buttons/links)
+        if text and tag in ['button', 'a']:
+            # Escape quotes in text
+            escaped_text = text[:30].replace('"', '\\"')
+            text_selector = f'{tag}:has-text("{escaped_text}")'
+            if await self._is_unique_selector(page, text_selector):
+                return text_selector
+
+        # Strategy 4: Fallback - use basic selector even if not unique
+        # This is the old behavior - just return something reasonable
+        if 'type' in attributes and attributes['type']:
+            return f'{base}[type="{attributes["type"]}"]'
+        elif 'name' in attributes and attributes['name']:
+            return f'{base}[name="{attributes["name"]}"]'
+        else:
+            return tag
+
+    async def _is_unique_selector(self, page: Page, selector: str) -> bool:
+        """Check if selector matches exactly one element on the page"""
+        try:
+            count = await page.locator(selector).count()
+            return count == 1
+        except Exception:
+            return False
+
     def _build_selector(self, tag: str, attributes: dict) -> str:
-        """Build CSS selector from tag and attributes"""
+        """Build CSS selector from tag and attributes (legacy method)"""
         selector = tag
 
         # Prefer id
