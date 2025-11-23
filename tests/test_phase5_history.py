@@ -94,7 +94,7 @@ def test_context_history_methods():
     print("Testing Context History Methods")
     print("="*60)
 
-    context = Context()
+    context = Context(enable_history_file=False)  # Disable file persistence for tests
 
     # Add commands to history
     context.add_to_history("open https://example.com")
@@ -198,7 +198,7 @@ def test_error_cases():
         print(f"\n[OK] Single '!' raises error: {e}")
 
     # Context tests
-    context = Context()
+    context = Context(enable_history_file=False)  # Disable file persistence for tests
 
     # Empty history
     history = context.get_history()
