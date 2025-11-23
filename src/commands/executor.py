@@ -538,18 +538,13 @@ class CommandExecutor:
 
         # Case 2: highlight <target> [where <condition>]
         # Get elements from all_elements based on target
-        elements = self._resolve_target_elements(
-            command.target,
-            context.all_elements,
-            context.collection
-        )
+        elements = self._resolve_target(command.target, context)
 
         # Apply condition filter if present
         if command.condition_tree:
-            elements = [
-                elem for elem in elements
-                if self._evaluate_condition_tree(elem, command.condition_tree)
-            ]
+            elements = self._filter_by_condition_tree(elements, command.condition_tree)
+        elif command.condition:
+            elements = self._filter_by_condition(elements, command.condition)
 
         if not elements:
             return "No elements matched the criteria"
