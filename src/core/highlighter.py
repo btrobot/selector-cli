@@ -64,22 +64,34 @@ class Highlighter:
                         error_messages.append(f"[{i}] No selector available")
                     continue
 
-                # Create locator - try CSS first, then XPath
+                # Create locator - prefer unique selectors
                 locator = None
+                used_selector = None
+
+                # Try CSS selector first, but only if it's unique
                 if elem.selector:
                     try:
-                        locator = self.page.locator(elem.selector).first
-                        # Verify it exists
-                        elem_count = await self.page.locator(elem.selector).count()
-                        if elem_count == 0:
-                            locator = None
+                        css_count = await self.page.locator(elem.selector).count()
+                        if css_count == 1:
+                            # CSS selector is unique, use it
+                            locator = self.page.locator(elem.selector)
+                            used_selector = elem.selector
+                        elif css_count > 1 and elem.xpath:
+                            # CSS selector matches multiple elements, use XPath instead
+                            locator = self.page.locator(f"xpath={elem.xpath}")
+                            used_selector = elem.xpath
+                        elif css_count > 1:
+                            # No XPath available, use .first as fallback
+                            locator = self.page.locator(elem.selector).first
+                            used_selector = elem.selector
                     except Exception:
-                        locator = None
+                        pass
 
-                # Fallback to XPath if CSS failed or selector is not unique
+                # Fallback to XPath if CSS failed
                 if not locator and elem.xpath:
                     try:
-                        locator = self.page.locator(f"xpath={elem.xpath}").first
+                        locator = self.page.locator(f"xpath={elem.xpath}")
+                        used_selector = elem.xpath
                     except Exception:
                         pass
 
@@ -89,7 +101,7 @@ class Highlighter:
                         error_messages.append(f"[{i}] Element not found (selector: {selector[:50]}...)")
                     continue
 
-                # Highlight the element using .first to avoid strict mode violation
+                # Highlight the element
                 await locator.evaluate(
                     f"""
                     (element) => {{
@@ -102,7 +114,8 @@ class Highlighter:
                 )
 
                 # Track selector
-                self.highlighted_selectors.add(selector)
+                if used_selector:
+                    self.highlighted_selectors.add(used_selector)
                 count += 1
 
             except Exception as e:
