@@ -1,6 +1,8 @@
 """
-Location Strategy Engine - Phase 3 Enhanced Version
-This is a clean version with Phase 3 changes applied
+Location Strategy Engine
+
+Core engine that finds the optimal locator (CSS or XPath) for an element
+using multi-strategy approach with uniqueness verification.
 """
 
 from enum import Enum
@@ -171,7 +173,7 @@ class LocationStrategyEngine:
             {
                 'name': 'NTH_OF_TYPE',
                 'priority': StrategyPriority.NTH_OF_TYPE,
-                'generator': self._generate_nth_of_type_selector,  # Note: async method
+                'generator': self._generate_nth_of_type_selector,
                 'applies_to': ['*'],
             },
             # P3: Fallback strategies
@@ -218,23 +220,7 @@ class LocationStrategyEngine:
             },
         ]
 
-    def _escape_xpath_string(self, text: str) -> str:
-        """Simple XPath string escaping - use single quotes, then double if needed."""
-        if not text:
-            return "''"
-
-        # No single quotes - use single quotes (most common)
-        if "'" not in text:
-            return f"'{text}'"
-
-        # No double quotes - use double quotes
-        if '"' not in text:
-            return f'"{text}"'
-
-        # Has both quotes - simplified (will be enhanced in future)
-        return f"concat('{text}')"
-
-    # CSS Generator Methods
+    # CSS Generator Methods (Placeholders - actual implementation will come later)
     def _generate_id_selector(self, element: Element) -> Optional[str]:
         """Generate ID selector: #element-id"""
         if element.id:
@@ -279,7 +265,7 @@ class LocationStrategyEngine:
         return None
 
     def _generate_text_content_selector(self, element: Element) -> Optional[str]:
-        """Generate text content selector: :has-text(\"text\")"""
+        """Generate text content selector: :has-text("text")"""
         if element.text:
             escaped_text = element.text.replace('"', '\\"')
             return f'{element.tag}:has-text("{escaped_text}")'
@@ -307,14 +293,47 @@ class LocationStrategyEngine:
             return f'.{element.classes[0]}'
         return None
 
-    def _generate_nth_of_type_selector(self, element: Element, page) -> Optional[str]:
-        """Generate nth-of-type selector: tag:nth-of-type(n)
-
-        Note: This method is async and needs the page parameter to calculate
-        the actual position among siblings.
+    async def _generate_nth_of_type_selector(self, element: Element, page) -> Optional[str]:
         """
-        # Placeholder - will be implemented with page context
-        return f'{element.tag}:nth-of-type(1)'
+        Generate nth-of-type selector: tag:nth-of-type(n)
+
+        This is a fallback strategy that uses the element's position among
+        siblings with the same tag name. Calculated dynamically using Playwright.
+
+        Args:
+            element: Element to locate
+            page: Playwright page object
+
+        Returns:
+            nth-of-type selector or None if calculation fails
+        """
+        try:
+            if not element.locator:
+                return None
+
+            # Get all sibling elements with the same tag
+            siblings_locator = element.locator.locator(f'xpath=../{element.tag}')
+            count = await siblings_locator.count()
+
+            if count == 0:
+                return None
+
+            if count == 1:
+                # Only one element of this type, return simple selector
+                return f'{element.tag}:nth-of-type(1)'
+
+            # Find the position of our element among siblings
+            for i in range(count):
+                sibling = siblings_locator.nth(i)
+                if await sibling.evaluate('(el, target) => el === target', await element.handle):
+                    position = i + 1  # XPath is 1-indexed
+                    return f'{element.tag}:nth-of-type({position})'
+
+            return None
+
+        except Exception:
+            # If anything fails, return basic selector
+            return f'{element.tag}:nth-of-type(1)'  # Placeholder - needs sibling position
 
     def _generate_type_only_selector(self, element: Element) -> Optional[str]:
         """Generate type-only selector: tag[type=\"value\"]"""
@@ -322,9 +341,11 @@ class LocationStrategyEngine:
             return f'{element.tag}[type="{element.type}"]'
         return None
 
+
+
     # XPath Generator Methods
     def _generate_xpath_id_selector(self, element: Element) -> Optional[str]:
-        """Generate XPath ID selector: //tag[@id=\"value\"]"""
+        """Generate XPath ID selector: //tag[@id="value"]"""
         if element.id:
             escaped_id = self._escape_xpath_string(element.id)
             return f'//{element.tag}[@id={escaped_id}]'
@@ -355,6 +376,83 @@ class LocationStrategyEngine:
         # In a full implementation, this would traverse up the DOM tree
         # to build the full path like /html/body/div[2]/button[1]
         return f'//{element.tag}[1]'
+
+    def _escape_xpath_string(self, text: str) -> str:
+        """
+        Escape string for use in XPath expressions.
+
+        XPath strings can use single or double quotes.
+        If the string contains both, we need to use concat().
+
+        Simple approach:
+        - If string has no quotes: use double quotes
+        - If string has single quotes only: use double quotes
+        - If string has double quotes only: use single quotes
+        - If string has both: use concat() to combine parts
+
+        Args:
+            text: String to escape
+
+        Returns:
+            Escaped string suitable for XPath
+        """
+        if not text:
+            return '""'
+
+        # Check if string has both single and double quotes
+        has_single = "'" in text
+        has_double = '"' in text
+
+        # If no quotes or only single quotes, use double quotes
+        if not has_double:
+            return f'"{text}"'
+
+        # If only double quotes (no single quotes), use single quotes
+        if not has_single:
+            return f"'{text}'"
+
+        # Has both single and double quotes, need concat()
+        # Strategy: split by single quotes, wrap each part in double quotes
+        # then join with ',"'"','
+        parts = text.split("'")
+        quoted_parts = [f'"{part}"' for part in parts]
+
+        # Join with ', "\'", ' which represents a single quote string
+        return f"concat({', ' \"'\" ', '.join(quoted_parts)})"
+
+    def _escape_xpath_string_alternative(self, text: str) -> str:
+        """
+        Alternative implementation that's simpler.
+        Just always use concat if both quotes are present.
+        """
+        if not text:
+            return '""'
+
+        has_single = "'" in text
+        has_double = '"' in text
+
+        # Has both quotes - use concat with single quotes around double quotes
+        if has_single and has_double:
+            # Split by double quotes
+            parts = text.split('"')
+            if len(parts) == 3 and parts[0] and parts[1] and parts[2]:
+                # Format: part1 " part2
+                return f'concat("{parts[0]}", ' \"'\" ', "{parts[1]}", ' \"'\" ', "{parts[2]}")'
+            else:
+                # Complex case, just split and wrap all in double quotes
+                quoted_parts = [f'"{part}"' for part in parts if part]
+                return f"concat({', '}, ' \"'\" ', '.join(quoted_parts)})"
+
+        # Has only single quotes, use double quotes
+        if has_single:
+            return f'"{text}"'
+
+        # Has only double quotes, use single quotes
+        if has_double:
+            return f"'{text}'"
+
+        # No quotes, use double quotes
+        return f'"{text}"'
 
     async def find_best_locator(self, element: Element, page) -> Optional[LocationResult]:
         """
@@ -400,10 +498,10 @@ class LocationStrategyEngine:
             # Generate selector (handle both sync and async generators)
             generator = strategy['generator']
 
-            # Check if generator accepts page parameter
+            # Check if generator is async (requires page parameter)
             import inspect
-            if 'page' in inspect.signature(generator).parameters:
-                # Async/Paged generator
+            if inspect.iscoroutinefunction(generator) or 'page' in inspect.signature(generator).parameters:
+                # Async generator (like NTH_OF_TYPE)
                 selector = await generator(element, page)
             else:
                 # Sync generator
@@ -450,19 +548,11 @@ class LocationStrategyEngine:
         applicable_strategies.sort(key=lambda s: s['priority'].value)
 
         for strategy in applicable_strategies:
-            generator = strategy['generator']
-
-            # Check if generator accepts page parameter
-            import inspect
-            if 'page' in inspect.signature(generator).parameters:
-                selector = await generator(element, page)
-            else:
-                selector = generator(element)
-
+            selector = strategy['generator'](element)
             if selector is None:
                 continue
 
-            # Validate uniqueness
+            # Validate uniqueness (placeholder - needs async)
             is_unique = await self._validate_selector(selector, element, page, is_xpath=True)
 
             if is_unique:

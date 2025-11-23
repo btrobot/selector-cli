@@ -1,0 +1,19 @@
+    def _escape_xpath_string(self, text: str) -> str:
+        """
+        Simple XPath string escaping - use single quotes, then double if needed.
+        """
+        if not text:
+            return "''"
+
+        # No single quotes - use single quotes (most common)
+        if "'" not in text:
+            return f"'{text}'"
+
+        # No double quotes - use double quotes
+        if '"' not in text:
+            return f'"{text}"'
+
+        # Has both - use concat with single quote as separator
+        parts = text.split("'")
+        quoted = [f'"{p}"' for p in parts]
+        return f"concat({', "\'", '.join(quoted)})"
