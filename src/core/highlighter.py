@@ -52,13 +52,13 @@ class Highlighter:
         for elem in elements:
             try:
                 # Use CSS selector if available, otherwise XPath
-                selector = elem.css_selector or elem.xpath
+                selector = elem.selector or elem.xpath
                 if not selector:
                     continue
 
                 # Create locator
-                if elem.css_selector:
-                    locator = self.page.locator(elem.css_selector)
+                if elem.selector:
+                    locator = self.page.locator(elem.selector)
                 else:
                     locator = self.page.locator(f"xpath={elem.xpath}")
 
