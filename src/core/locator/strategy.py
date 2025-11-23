@@ -1,6 +1,6 @@
 """
-Location Strategy Engine - Phase 3 Enhanced Version
-This is a clean version with Phase 3 changes applied
+Location Strategy Engine - Phase 3 with Logging
+Enhanced version with debug logging and performance tracking
 """
 
 from enum import Enum
@@ -9,6 +9,16 @@ from typing import Optional, List, Dict, Any
 from src.core.element import Element
 from src.core.locator.cost import calculate_total_cost, STRATEGY_COSTS, CostCalculator
 from src.core.locator.validator import UniquenessValidator
+import logging
+
+# Setup logger
+logger = logging.getLogger('locator.strategy')
+logger.setLevel(logging.DEBUG)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+    logger.addHandler(handler)
 
 
 class LocatorType(Enum):
@@ -279,7 +289,7 @@ class LocationStrategyEngine:
         return None
 
     def _generate_text_content_selector(self, element: Element) -> Optional[str]:
-        """Generate text content selector: :has-text(\"text\")"""
+        """Generate text content selector: :has-text("text")"""
         if element.text:
             escaped_text = element.text.replace('"', '\\"')
             return f'{element.tag}:has-text("{escaped_text}")'
@@ -287,14 +297,14 @@ class LocationStrategyEngine:
 
     # P2: Additional CSS strategies for Phase 2
     def _generate_aria_label_selector(self, element: Element) -> Optional[str]:
-        """Generate aria-label selector: [aria-label=\"value\"]"""
+        """Generate aria-label selector: [aria-label="value"]"""
         aria_label = element.attributes.get('aria-label')
         if aria_label:
             return f'[aria-label="{aria_label}"]'
         return None
 
     def _generate_title_attr_selector(self, element: Element) -> Optional[str]:
-        """Generate title attribute selector: [title=\"value\"]"""
+        """Generate title attribute selector: [title="value"]"""
         title = element.attributes.get('title')
         if title:
             return f'[title="{title}"]'
@@ -307,7 +317,7 @@ class LocationStrategyEngine:
             return f'.{element.classes[0]}'
         return None
 
-    def _generate_nth_of_type_selector(self, element: Element, page) -> Optional[str]:
+    async def _generate_nth_of_type_selector(self, element: Element, page) -> Optional[str]:
         """Generate nth-of-type selector: tag:nth-of-type(n)
 
         Note: This method is async and needs the page parameter to calculate
@@ -317,14 +327,14 @@ class LocationStrategyEngine:
         return f'{element.tag}:nth-of-type(1)'
 
     def _generate_type_only_selector(self, element: Element) -> Optional[str]:
-        """Generate type-only selector: tag[type=\"value\"]"""
+        """Generate type-only selector: tag[type="value"]"""
         if element.type:
             return f'{element.tag}[type="{element.type}"]'
         return None
 
     # XPath Generator Methods
     def _generate_xpath_id_selector(self, element: Element) -> Optional[str]:
-        """Generate XPath ID selector: //tag[@id=\"value\"]"""
+        """Generate XPath ID selector: //tag[@id="value"]"""
         if element.id:
             escaped_id = self._escape_xpath_string(element.id)
             return f'//{element.tag}[@id={escaped_id}]'
@@ -367,15 +377,24 @@ class LocationStrategyEngine:
         Returns:
             LocationResult with optimal locator, or None if not found
         """
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Finding locator for <{element.tag}>")
+        logger.info(f"{'='*60}")
+
         # Phase 1: Try CSS strategies in priority order
+        logger.debug("[PHASE 1] Trying CSS strategies...")
         css_result = await self._try_css_strategies(element, page)
         if css_result and css_result.is_unique:
+            logger.info(f"✓ Selected CSS: {css_result.selector}")
             return css_result
 
-        # Phase 2: Try XPath strategies
+        logger.debug("[PHASE 2] CSS failed, trying XPath strategies...")
         xpath_result = await self._try_xpath_strategies(element, page)
         if xpath_result and xpath_result.is_unique:
+            logger.info(f"✓ Selected XPath: {xpath_result.selector}")
             return xpath_result
+
+        logger.warning("! No unique locator found")
 
         # Phase 3: Best effort fallback (not yet implemented)
         # This will try all strategies and return the best one
@@ -394,31 +413,30 @@ class LocationStrategyEngine:
         # Sort by priority (lower value = higher priority)
         applicable_strategies.sort(key=lambda s: s['priority'].value)
 
+        logger.debug(f"Trying {len(applicable_strategies)} CSS strategies in order...")
         attempted = []
 
         for strategy in applicable_strategies:
-            # Generate selector (handle both sync and async generators)
+            # Generate selector
             generator = strategy['generator']
-
-            # Check if generator accepts page parameter
-            import inspect
-            if 'page' in inspect.signature(generator).parameters:
-                # Async/Paged generator
+            if 'page' in __import__('inspect').signature(generator).parameters:
                 selector = await generator(element, page)
             else:
-                # Sync generator
                 selector = generator(element)
 
             if selector is None:
+                logger.debug(f"  [SKIP] {strategy['name']}: not applicable")
                 continue
+
+            # Log attempt
+            logger.debug(f"  [TRY] {strategy['name']:20s} → {selector}")
 
             # Try to validate uniqueness
             is_unique = await self._validate_selector(selector, element, page)
 
             if is_unique:
-                # Calculate cost
                 cost = calculate_total_cost(STRATEGY_COSTS[strategy['name']], selector)
-
+                logger.debug(f"  [OK]  {strategy['name']:20s} (cost: {cost:.3f})")
                 return LocationResult(
                     type=LocatorType.CSS,
                     selector=selector,
@@ -427,17 +445,14 @@ class LocationStrategyEngine:
                     is_unique=True,
                 )
             else:
+                logger.debug(f"  [FAIL] {strategy['name']:20s} (not unique)")
                 attempted.append({
                     'selector': selector,
                     'strategy': strategy['name'],
                     'reason': 'not_unique'
                 })
 
-        # If we get here, none were unique
-        if attempted:
-            # Store fallbacks for future use
-            pass
-
+        logger.debug(f"All CSS strategies failed ({len(attempted)} attempts)")
         return None
 
     async def _try_xpath_strategies(self, element: Element, page) -> Optional[LocationResult]:
@@ -448,13 +463,11 @@ class LocationStrategyEngine:
         ]
 
         applicable_strategies.sort(key=lambda s: s['priority'].value)
+        logger.debug(f"Trying {len(applicable_strategies)} XPath strategies...")
 
         for strategy in applicable_strategies:
             generator = strategy['generator']
-
-            # Check if generator accepts page parameter
-            import inspect
-            if 'page' in inspect.signature(generator).parameters:
+            if 'page' in __import__('inspect').signature(generator).parameters:
                 selector = await generator(element, page)
             else:
                 selector = generator(element)
@@ -462,12 +475,14 @@ class LocationStrategyEngine:
             if selector is None:
                 continue
 
+            logger.debug(f"  [TRY] {strategy['name']:20s} → {selector}")
+
             # Validate uniqueness
             is_unique = await self._validate_selector(selector, element, page, is_xpath=True)
 
             if is_unique:
                 cost = calculate_total_cost(STRATEGY_COSTS[strategy['name']], selector)
-
+                logger.debug(f"  [OK]  {strategy['name']:20s} (cost: {cost:.3f})")
                 return LocationResult(
                     type=LocatorType.XPATH,
                     selector=selector,
@@ -476,23 +491,12 @@ class LocationStrategyEngine:
                     is_unique=True,
                 )
 
+        logger.debug("All XPath strategies failed")
         return None
 
     async def _validate_selector(self, selector: str, element: Element, page, is_xpath: bool = False) -> bool:
-        """
-        Validate that selector uniquely identifies the element
-
-        Uses strict uniqueness validation (Level 3) which verifies:
-        1. Selector matches exactly one element on the page
-        2. The matched element is the target element
-
-        Args:
-            selector: CSS or XPath selector string
-            element: Target element to validate against
-            page: Playwright page object
-            is_xpath: True if selector is XPath, False if CSS
-
-        Returns:
-            True if selector uniquely identifies the target element
-        """
-        return await self.validator.is_strictly_unique(selector, element, page, is_xpath)
+        """Validate that selector uniquely identifies the element"""
+        logger.debug(f"    [VALIDATE] {'XPath' if is_xpath else 'CSS'}: {selector}")
+        result = await self.validator.is_strictly_unique(selector, element, page, is_xpath)
+        logger.debug(f"    [RESULT] {'unique' if result else 'not unique'}")
+        return result

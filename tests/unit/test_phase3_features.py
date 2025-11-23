@@ -187,11 +187,11 @@ def verify_phase3_progress():
     print("=" * 60)
 
     if all_passed:
-        print("✅ NTH_OF_TYPE strategy implemented with async support")
-        print("✅ Strategy priority ordering maintained")
-        print("✅ Async generator detection working")
-        print("✅ All 17 strategies present and accounted for")
-        print("✅ XPath costs configured")
+        print("[OK] NTH_OF_TYPE strategy implemented with async support")
+        print("[OK] Strategy priority ordering maintained")
+        print("[OK] Async generator detection working")
+        print("[OK] All 17 strategies present and accounted for")
+        print("[OK] XPath costs configured")
         print("\n" + "=" * 60)
         print("[PASS] PHASE 3 FEATURES VERIFIED")
         print("=" * 60)
