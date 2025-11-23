@@ -149,12 +149,45 @@ class LocationStrategyEngine:
                 'generator': self._generate_type_placeholder_selector,
                 'applies_to': ['input'],
             },
-            # P2: Good strategies
+            # P2: Phase 2 Additional Strategies
+            {
+                'name': 'ARIA_LABEL',
+                'priority': StrategyPriority.ARIA_LABEL,
+                'generator': self._generate_aria_label_selector,
+                'applies_to': ['*'],
+            },
+            # Note: TEXT_CONTENT has priority 30 (P3), moved to end of list
+            # P2: Phase 2 Additional Strategies (continued)
+            {
+                'name': 'TITLE_ATTR',
+                'priority': StrategyPriority.TITLE_ATTR,
+                'generator': self._generate_title_attr_selector,
+                'applies_to': ['*'],
+            },
+            {
+                'name': 'CLASS_UNIQUE',
+                'priority': StrategyPriority.CLASS_UNIQUE,
+                'generator': self._generate_class_unique_selector,
+                'applies_to': ['*'],
+            },
+            {
+                'name': 'NTH_OF_TYPE',
+                'priority': StrategyPriority.NTH_OF_TYPE,
+                'generator': self._generate_nth_of_type_selector,
+                'applies_to': ['*'],
+            },
+            # P3: Fallback strategies
             {
                 'name': 'TEXT_CONTENT',
                 'priority': StrategyPriority.TEXT_CONTENT,
                 'generator': self._generate_text_content_selector,
                 'applies_to': ['button', 'a', 'label', '*'],
+            },
+            {
+                'name': 'TYPE_ONLY',
+                'priority': StrategyPriority.TYPE_ONLY,
+                'generator': self._generate_type_only_selector,
+                'applies_to': ['input', 'button'],
             },
         ]
 
@@ -237,6 +270,44 @@ class LocationStrategyEngine:
             escaped_text = element.text.replace('"', '\\"')
             return f'{element.tag}:has-text("{escaped_text}")'
         return None
+
+    # P2: Additional CSS strategies for Phase 2
+    def _generate_aria_label_selector(self, element: Element) -> Optional[str]:
+        """Generate aria-label selector: [aria-label=\"value\"]"""
+        aria_label = element.attributes.get('aria-label')
+        if aria_label:
+            return f'[aria-label="{aria_label}"]'
+        return None
+
+    def _generate_title_attr_selector(self, element: Element) -> Optional[str]:
+        """Generate title attribute selector: [title=\"value\"]"""
+        title = element.attributes.get('title')
+        if title:
+            return f'[title="{title}"]'
+        return None
+
+    def _generate_class_unique_selector(self, element: Element) -> Optional[str]:
+        """Generate unique class selector: .single-class"""
+        # Only generate if element has exactly one class
+        if len(element.classes) == 1:
+            return f'.{element.classes[0]}'
+        return None
+
+    def _generate_nth_of_type_selector(self, element: Element) -> Optional[str]:
+        """Generate nth-of-type selector: tag:nth-of-type(n)"""
+        # This is a fallback strategy that uses element index
+        # Will be calculated based on element's position among siblings
+        # For now, we'll generate a basic nth-of-type selector
+        # Actual implementation will need to determine the position
+        return f'{element.tag}:nth-of-type(1)'  # Placeholder - needs sibling position
+
+    def _generate_type_only_selector(self, element: Element) -> Optional[str]:
+        """Generate type-only selector: tag[type=\"value\"]"""
+        if element.type:
+            return f'{element.tag}[type="{element.type}"]'
+        return None
+
+
 
     # XPath Generator Methods
     def _generate_xpath_id_selector(self, element: Element) -> Optional[str]:

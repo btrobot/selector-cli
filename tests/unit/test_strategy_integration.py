@@ -63,8 +63,8 @@ def test_locator_type_enum():
 
 
 def test_strategy_coverage():
-    """Test that core Phase 1 strategies are implemented"""
-    print("\n4. Testing Phase 1 strategy coverage...")
+    """Test that all strategies are implemented"""
+    print("\n4. Testing strategy coverage...")
 
     engine = LocationStrategyEngine()
 
@@ -75,30 +75,21 @@ def test_strategy_coverage():
     for strategy in engine.xpath_strategies:
         defined_strategies.add(strategy['name'])
 
-    # Phase 1: Core strategies that should be implemented
-    phase1_strategies = {
-        'ID_SELECTOR', 'DATA_TESTID', 'LABEL_FOR', 'TYPE_NAME_PLACEHOLDER',
-        'HREF', 'TYPE_NAME', 'TYPE_PLACEHOLDER', 'TEXT_CONTENT',
-        'XPATH_ID', 'XPATH_ATTR', 'XPATH_TEXT', 'XPATH_POSITION'
-    }
-
-    # Check that all Phase 1 strategies are defined
+    # Check that all strategies in STRATEGY_COSTS are defined
     missing = []
-    for strategy_name in phase1_strategies:
+    for strategy_name in STRATEGY_COSTS.keys():
         if strategy_name not in defined_strategies:
             missing.append(strategy_name)
 
     if missing:
-        print(f"   [FAIL] Missing Phase 1 strategy definitions: {missing}")
+        print(f"   [FAIL] Missing strategy definitions: {missing}")
         return False
     else:
-        print(f"   [OK] All {len(phase1_strategies)} Phase 1 strategies implemented")
-
-        # Note: Additional strategies will be implemented in Phase 2
-        all_strategies = set(STRATEGY_COSTS.keys())
-        phase2_strategies = all_strategies - phase1_strategies
-        print(f"   [INFO] {len(phase2_strategies)} Phase 2 strategies pending implementation")
-
+        total_strategies = len(STRATEGY_COSTS)
+        css_strategies = len([s for s in engine.css_strategies])
+        xpath_strategies = len([s for s in engine.xpath_strategies])
+        print(f"   [OK] All {total_strategies} strategies implemented")
+        print(f"   [INFO] CSS strategies: {css_strategies}, XPath strategies: {xpath_strategies}")
         return True
 
 
