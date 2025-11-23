@@ -85,6 +85,10 @@ class Parser:
             return self._parse_history(command_str)
         elif verb_token.type == TokenType.BANG:
             return self._parse_bang(command_str)
+        elif verb_token.type == TokenType.KEEP:
+            return self._parse_keep(command_str)
+        elif verb_token.type == TokenType.FILTER:
+            return self._parse_filter(command_str)
         elif verb_token.type in (TokenType.QUIT, TokenType.EXIT):
             return Command(verb='quit', raw=command_str)
         elif verb_token.type == TokenType.HELP:
@@ -464,6 +468,36 @@ class Parser:
         """Parse: unique"""
         self._consume(TokenType.UNIQUE)
         return Command(verb='unique', raw=raw)
+
+    def _parse_keep(self, raw: str) -> Command:
+        """Parse: keep where <condition>
+
+        Format: keep where <condition>
+        Example: keep where visible and enabled
+        """
+        self._consume(TokenType.KEEP)
+
+        # Expect WHERE clause
+        if self._current_token().type != TokenType.WHERE:
+            raise ValueError("Expected 'where' after 'keep'")
+
+        condition = self._parse_where_clause_v2()
+        return Command(verb='keep', condition_tree=condition, raw=raw)
+
+    def _parse_filter(self, raw: str) -> Command:
+        """Parse: filter where <condition>
+
+        Format: filter where <condition>
+        Example: filter where not visible
+        """
+        self._consume(TokenType.FILTER)
+
+        # Expect WHERE clause
+        if self._current_token().type != TokenType.WHERE:
+            raise ValueError("Expected 'where' after 'filter'")
+
+        condition = self._parse_where_clause_v2()
+        return Command(verb='filter', condition_tree=condition, raw=raw)
 
     def _parse_history(self, raw: str) -> Command:
         """Parse: history [n]"""

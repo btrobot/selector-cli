@@ -35,6 +35,10 @@ class Element:
     xpath: str = ""
     path: str = ""
 
+    # Strategy Metadata (from LocationStrategyEngine)
+    selector_cost: Optional[float] = None  # Cost of generated selector (lower = better)
+    strategy_used: Optional[str] = None    # Which location strategy was used
+
     # State
     visible: bool = True
     enabled: bool = True

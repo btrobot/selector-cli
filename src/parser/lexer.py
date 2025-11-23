@@ -45,6 +45,10 @@ class TokenType(Enum):
     HISTORY = auto()
     BANG = auto()  # ! for history (!n, !!)
 
+    # Phase 2 - Filtering
+    KEEP = auto()
+    FILTER = auto()
+
     # Element types
     INPUT = auto()
     BUTTON = auto()
@@ -148,6 +152,10 @@ class Lexer:
         'difference': TokenType.DIFFERENCE,
         'unique': TokenType.UNIQUE,
         'history': TokenType.HISTORY,
+
+        # Phase 2 - Filtering
+        'keep': TokenType.KEEP,
+        'filter': TokenType.FILTER,
 
         # Element types
         'input': TokenType.INPUT,

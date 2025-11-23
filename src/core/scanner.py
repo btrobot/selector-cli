@@ -4,6 +4,7 @@ Element scanner for Selector CLI
 from typing import List, Optional, Tuple
 from playwright.async_api import Page, Locator
 from src.core.element import Element
+from src.core.locator.strategy import LocationStrategyEngine
 import uuid
 
 
@@ -46,7 +47,7 @@ class ElementScanner:
         page_url: str,
         page: Page
     ) -> Element:
-        """Build Element object from Playwright locator"""
+        """Build Element object from Playwright locator using LocationStrategyEngine"""
 
         # Get basic properties
         tag = elem_type
@@ -57,7 +58,7 @@ class ElementScanner:
         attributes = {}
         try:
             # Common attributes to extract
-            for attr in ['type', 'name', 'id', 'class', 'placeholder', 'value', 'href', 'disabled', 'required']:
+            for attr in ['type', 'name', 'id', 'class', 'placeholder', 'value', 'href', 'disabled', 'required', 'readonly', 'aria-label', 'title', 'data-testid']:
                 attr_value = await locator.get_attribute(attr)
                 if attr_value is not None:
                     attributes[attr] = attr_value
@@ -72,10 +73,40 @@ class ElementScanner:
         value = attributes.get('value', '')
         classes = attributes.get('class', '').split() if attributes.get('class') else []
 
-        # Build selector with uniqueness verification
-        selector = await self._build_unique_selector(tag, attributes, text, page)
+        # Create a temporary element for strategy engine
+        temp_element = Element(
+            index=index,
+            uuid=str(uuid.uuid4()),
+            tag=tag,
+            type=elem_type_attr,
+            text=text,
+            value=value,
+            attributes=attributes,
+            name=name,
+            id=elem_id,
+            classes=classes,
+            placeholder=placeholder,
+            selector='',  # Will be filled by strategy engine
+            xpath='',     # Will be filled by strategy engine
+            visible=True,  # Placeholder
+            enabled=True,  # Placeholder
+            disabled=False # Placeholder
+        )
 
-        # Build xpath
+        # Use LocationStrategyEngine to find best selector
+        strategy_engine = LocationStrategyEngine()
+        locator_result = await strategy_engine.find_best_locator(temp_element, page)
+
+        # Extract selector from result
+        if locator_result and locator_result.is_unique:
+            selector = locator_result.selector
+            cost = locator_result.cost
+        else:
+            # Fallback to basic selector if strategy fails or returns non-unique selector
+            selector = await self._build_unique_selector(tag, attributes, text, page)
+            cost = None
+
+        # Build xpath (always build separately as LocationResult doesn't provide xpath)
         xpath = await self._build_xpath(locator)
 
         # State
@@ -87,6 +118,13 @@ class ElementScanner:
             visible = True
             enabled = True
             disabled = False
+
+        # Extract strategy metadata if available
+        selector_cost = None
+        strategy_used = None
+        if locator_result:
+            selector_cost = locator_result.cost if hasattr(locator_result, 'cost') else None
+            strategy_used = locator_result.strategy if hasattr(locator_result, 'strategy') else None
 
         return Element(
             index=index,
@@ -102,6 +140,8 @@ class ElementScanner:
             placeholder=placeholder,
             selector=selector,
             xpath=xpath,
+            selector_cost=selector_cost,
+            strategy_used=strategy_used,
             visible=visible,
             enabled=enabled,
             disabled=disabled,

@@ -80,6 +80,10 @@ class CommandExecutor:
             return await self._execute_difference(command, context)
         elif command.verb == 'unique':
             return await self._execute_unique(command, context)
+        elif command.verb == 'keep':
+            return await self._execute_keep(command, context)
+        elif command.verb == 'filter':
+            return await self._execute_filter(command, context)
         elif command.verb == 'history':
             return await self._execute_history(command, context)
         elif command.verb == 'bang_n':
@@ -672,6 +676,56 @@ class CommandExecutor:
             return f"Collection already unique. Total: {after_count}"
         else:
             return f"Removed {removed} duplicate(s). Total: {after_count}"
+
+    async def _execute_keep(self, command: Command, context: Context) -> str:
+        """Execute keep command: keep only elements matching condition"""
+        if not context.collection.count():
+            return "Collection is empty. Nothing to keep."
+
+        if not command.condition_tree:
+            return "Error: No condition specified for keep"
+
+        # Get all elements currently in collection
+        all_elements = list(context.collection.elements)
+
+        # Filter elements to keep
+        elements_to_keep = self._filter_by_condition_tree(all_elements, command.condition_tree)
+
+        # Clear collection and re-add only matching elements
+        original_count = context.collection.count()
+        context.collection.clear()
+        for elem in elements_to_keep:
+            context.collection.add(elem)
+
+        kept_count = len(elements_to_keep)
+        removed_count = original_count - kept_count
+
+        return f"Kept {kept_count} element(s), removed {removed_count}. Collection now: {kept_count}"
+
+    async def _execute_filter(self, command: Command, context: Context) -> str:
+        """Execute filter command: remove elements matching condition"""
+        if not context.collection.count():
+            return "Collection is empty. Nothing to filter."
+
+        if not command.condition_tree:
+            return "Error: No condition specified for filter"
+
+        # Get all elements currently in collection
+        all_elements = list(context.collection.elements)
+
+        # Filter elements to remove (find matching ones)
+        elements_to_remove = self._filter_by_condition_tree(all_elements, command.condition_tree)
+
+        # Remove matching elements
+        removed_count = 0
+        for elem in elements_to_remove:
+            if context.collection.contains(elem):
+                context.collection.remove(elem)
+                removed_count += 1
+
+        remaining_count = context.collection.count()
+
+        return f"Filtered out {removed_count} element(s). Remaining: {remaining_count}"
 
     async def _execute_history(self, command: Command, context: Context) -> str:
         """Execute history command - show command history"""
