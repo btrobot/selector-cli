@@ -533,8 +533,20 @@ class CommandExecutor:
             if not elements:
                 return "No elements in collection to highlight"
 
-            count = await context.highlighter.highlight_elements(elements)
-            return f"Highlighted {count} element(s) from collection"
+            # Use verbose mode to get diagnostics
+            result = await context.highlighter.highlight_elements(elements, verbose=True)
+            count, failed_indices, error_messages = result
+
+            # Build result message
+            msg = f"Highlighted {count} element(s) from collection"
+            if failed_indices:
+                total = len(elements)
+                msg += f"\nWarning: {len(failed_indices)} of {total} element(s) could not be highlighted:"
+                for err_msg in error_messages[:5]:  # Show first 5 errors
+                    msg += f"\n  {err_msg}"
+                if len(error_messages) > 5:
+                    msg += f"\n  ... and {len(error_messages) - 5} more"
+            return msg
 
         # Case 2: highlight <target> [where <condition>]
         # Get elements from all_elements based on target

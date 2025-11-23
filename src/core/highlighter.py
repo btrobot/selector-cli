@@ -31,29 +31,37 @@ class Highlighter:
     async def highlight_elements(
         self,
         elements: List[Element],
-        color: str = 'default'
-    ) -> int:
+        color: str = 'default',
+        verbose: bool = False
+    ) -> tuple:
         """
         Highlight elements in the browser
 
         Args:
             elements: List of elements to highlight
             color: Color theme ('default', 'success', 'info', 'warning')
+            verbose: If True, return detailed diagnostics
 
         Returns:
-            Number of elements successfully highlighted
+            If verbose: (success_count, failed_elements, error_messages)
+            Otherwise: success_count
         """
         if not elements:
-            return 0
+            return (0, [], []) if verbose else 0
 
         color_code = self.COLORS.get(color, self.COLORS['default'])
         count = 0
+        failed_elements = []
+        error_messages = []
 
-        for elem in elements:
+        for i, elem in enumerate(elements):
             try:
                 # Use CSS selector if available, otherwise XPath
                 selector = elem.selector or elem.xpath
                 if not selector:
+                    if verbose:
+                        failed_elements.append(i)
+                        error_messages.append(f"[{i}] No selector available")
                     continue
 
                 # Create locator
@@ -65,6 +73,9 @@ class Highlighter:
                 # Check if element exists
                 element_count = await locator.count()
                 if element_count == 0:
+                    if verbose:
+                        failed_elements.append(i)
+                        error_messages.append(f"[{i}] Element not found on page (selector: {selector[:50]}...)")
                     continue
 
                 # Highlight the element(s)
@@ -88,8 +99,13 @@ class Highlighter:
 
             except Exception as e:
                 # Skip elements that fail to highlight
+                if verbose:
+                    failed_elements.append(i)
+                    error_messages.append(f"[{i}] Error: {str(e)[:50]}")
                 continue
 
+        if verbose:
+            return (count, failed_elements, error_messages)
         return count
 
     async def unhighlight_all(self) -> int:
