@@ -1,0 +1,18 @@
+# Test script for Selector CLI
+# This script demonstrates macro parameterization and script execution
+
+# Define a parameterized macro for quick login form analysis
+macro quick-login {url} {
+  open {url}
+  scan
+  add input where type="email" or type="text"
+  add input where type="password"
+  add button where type="submit"
+  list
+}
+
+# Run the macro with a URL
+run quick-login https://github.com/login
+
+# Export the collected elements
+export json

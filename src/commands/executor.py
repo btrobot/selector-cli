@@ -424,18 +424,30 @@ class CommandExecutor:
         if not command.argument:
             return "Error: No macro specified"
 
-        # Parse "name:command" format
-        if ':' not in command.argument:
+        # Parse "name\x00param1,param2\x00command" format
+        if '\x00' not in command.argument:
             return "Error: Invalid macro format"
 
-        name, macro_command = command.argument.split(':', 1)
-        name = name.strip()
-        macro_command = macro_command.strip()
+        parts = command.argument.split('\x00')
+        if len(parts) < 3:
+            return "Error: Invalid macro format"
 
-        # Define macro (single command for now)
+        name = parts[0]
+        param_str = parts[1]
+        macro_command = parts[2]
+
+        # Parse parameters
+        parameters = param_str.split(',') if param_str else []
+        parameters = [p.strip() for p in parameters if p.strip()]
+
+        # Define macro
         try:
-            context.macro_manager.define(name, [macro_command])
-            return f"Macro '{name}' defined"
+            context.macro_manager.define(name, [macro_command], parameters)
+            if parameters:
+                params_display = f"{' '.join([f'{{{p}}}' for p in parameters])} "
+                return f"Macro '{name} {params_display.strip()}' defined with {len(parameters)} parameter(s)"
+            else:
+                return f"Macro '{name}' defined"
         except Exception as e:
             return f"Error defining macro: {e}"
 
@@ -444,15 +456,27 @@ class CommandExecutor:
         if not command.argument:
             return "Error: No macro name specified"
 
-        macro_name = command.argument
+        # Parse "name\x00arg1\x00arg2\x00..." format if arguments provided
+        if '\x00' in command.argument:
+            parts = command.argument.split('\x00')
+            macro_name = parts[0]
+            arguments = parts[1:]
+        else:
+            macro_name = command.argument
+            arguments = []
 
         try:
-            # Get macro commands
-            commands = context.macro_manager.get(macro_name)
+            # Get macro and expand with arguments
+            macro = context.macro_manager.get(macro_name)
+            commands = macro.expand(arguments)
 
             # Execute each command
             results = []
             for cmd_str in commands:
+                # Skip empty commands
+                if not cmd_str.strip():
+                    continue
+
                 # Parse and execute command
                 try:
                     cmd = self.parser.parse(cmd_str)
@@ -461,7 +485,7 @@ class CommandExecutor:
                 except Exception as e:
                     return f"Error in macro '{macro_name}': {e}\nCommand: {cmd_str}"
 
-            return "\n".join(results)
+            return "\n".join([r for r in results if r])
 
         except KeyError:
             return f"Error: Macro '{macro_name}' not found"
@@ -476,9 +500,10 @@ class CommandExecutor:
             return "No macros defined"
 
         lines = ["Macros:"]
-        for name, commands in macros.items():
-            cmd_text = "; ".join(commands)
-            lines.append(f"  {name}: {cmd_text}")
+        for name, macro in macros.items():
+            params_str = " ".join([f"{{{p}}}" for p in macro.parameters]) if macro.parameters else ""
+            cmd_text = "; ".join(macro.commands)
+            lines.append(f"  {name} {params_str}: {cmd_text}")
 
         return "\n".join(lines)
 

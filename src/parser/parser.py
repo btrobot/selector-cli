@@ -321,7 +321,7 @@ class Parser:
         return Command(verb='vars', raw=raw)
 
     def _parse_macro(self, raw: str) -> Command:
-        """Parse: macro <name> <command>"""
+        """Parse: macro <name> [{param1} {param2}...] <command>"""
         self._consume(TokenType.MACRO)
 
         # Get macro name
@@ -331,10 +331,23 @@ class Parser:
         macro_name = name_token.value
         self._advance()
 
+        # Check for parameters: {param_name}
+        parameters = []
+        while (self._current_token().type == TokenType.LBRACE and
+               self._peek_token().type == TokenType.IDENTIFIER and
+               self._peek_token(2).type == TokenType.RBRACE):
+            # Found {param}
+            self._consume(TokenType.LBRACE)
+            param_token = self._consume(TokenType.IDENTIFIER)
+            self._consume(TokenType.RBRACE)
+            parameters.append(param_token.value)
+
         # Get rest of line as macro command (preserve original)
-        # Find position after macro name in original string
-        macro_prefix = f"macro {macro_name}"
+        # Find position after macro name and parameters in original string
+        params_str = "".join([f" {{{p}}}" for p in parameters])
+        macro_prefix = f"macro {macro_name}{params_str}"
         macro_start = raw.find(macro_prefix)
+
         if macro_start >= 0:
             macro_command = raw[macro_start + len(macro_prefix):].strip()
         else:
@@ -353,11 +366,13 @@ class Parser:
         if not macro_command:
             raise ValueError("Macro must contain at least one command")
 
-        # Store as "name:command" in argument
-        return Command(verb='macro', argument=f"{macro_name}:{macro_command}", raw=raw)
+        # Store parameters and command separately
+        # Format: "name\x00param1,param2\x00command"
+        param_str = ",".join(parameters) if parameters else ""
+        return Command(verb='macro', argument=f"{macro_name}\x00{param_str}\x00{macro_command}", raw=raw)
 
     def _parse_run(self, raw: str) -> Command:
-        """Parse: run <macro_name>"""
+        """Parse: run <macro_name> [arg1 arg2 ...]"""
         self._consume(TokenType.RUN)
 
         # Get macro name
@@ -367,7 +382,27 @@ class Parser:
         macro_name = name_token.value
         self._advance()
 
-        return Command(verb='run', argument=macro_name, raw=raw)
+        # Get optional arguments
+        arguments = []
+        while self._current_token().type != TokenType.EOF:
+            token = self._current_token()
+            if token.type == TokenType.STRING:
+                # Remove quotes from string arguments
+                arguments.append(token.value)
+                self._advance()
+            elif token.type == TokenType.IDENTIFIER:
+                arguments.append(token.value)
+                self._advance()
+            else:
+                # Skip other token types
+                self._advance()
+
+        # Store as "name\x00arg1\x00arg2\x00..."
+        if arguments:
+            arg_str = "\x00".join([macro_name] + arguments)
+            return Command(verb='run', argument=arg_str, raw=raw)
+        else:
+            return Command(verb='run', argument=macro_name, raw=raw)
 
     def _parse_macros(self, raw: str) -> Command:
         """Parse: macros"""
