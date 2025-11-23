@@ -32,3 +32,18 @@ output/*.html
 .auth/
 test-results/
 playwright/.cache/
+
+# Selector CLI specific
+.selector-cli/
+result/
+
+# Distribution
+build/
+dist/
+*.egg-info/
+.wheels/
+
+# Coverage reports
+htmlcov/
+.coverage
+

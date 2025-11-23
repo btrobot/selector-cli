@@ -14,10 +14,12 @@ setup(
     version='1.0.0',
     author='Selector CLI Team',
     author_email='selector-cli@example.com',
+    maintainer='Selector CLI Team',
     description='Interactive web element selection and code generation tool',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/selector-cli/selector-cli',
+    download_url='https://github.com/selector-cli/selector-cli/archive/v1.0.0.tar.gz',
     packages=find_packages(where='src'),
     package_dir={'': 'src'},
     classifiers=[
