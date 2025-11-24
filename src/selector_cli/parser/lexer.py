@@ -23,6 +23,11 @@ class TokenType(Enum):
     HELP = auto()
     EXPORT = auto()  # Phase 3
 
+    # V2 - Extended commands
+    FIND = auto()
+    PREVIEW = auto()
+    APPEND = auto()
+
     # Phase 4 - Persistence
     SAVE = auto()
     LOAD = auto()
@@ -56,6 +61,7 @@ class TokenType(Enum):
     TEXTAREA = auto()
     LINK = auto()
     ALL = auto()
+    DIV = auto()
 
     # Export formats (Phase 3)
     PLAYWRIGHT = auto()
@@ -98,6 +104,11 @@ class TokenType(Enum):
     COMMA = auto()      # ,
     DASH = auto()       # -
 
+    # V2 - Additional tokens
+    DOT = auto()        # . (for .find)
+    DOUBLE_DASH = auto()  # -- (for options like --deep)
+    FROM = auto()       # from
+
     # Other
     IDENTIFIER = auto()
     EOF = auto()
@@ -132,6 +143,11 @@ class Lexer:
         'help': TokenType.HELP,
         'export': TokenType.EXPORT,  # Phase 3
 
+        # V2 - Extended commands
+        'find': TokenType.FIND,
+        'preview': TokenType.PREVIEW,
+        'append': TokenType.APPEND,
+
         # Phase 4 - Persistence
         'save': TokenType.SAVE,
         'load': TokenType.LOAD,
@@ -165,6 +181,7 @@ class Lexer:
         'a': TokenType.LINK,
         'link': TokenType.LINK,
         'all': TokenType.ALL,
+        'div': TokenType.DIV,
 
         # Export formats (Phase 3)
         'playwright': TokenType.PLAYWRIGHT,
@@ -173,6 +190,9 @@ class Lexer:
         'json': TokenType.JSON,
         'csv': TokenType.CSV,
         'yaml': TokenType.YAML,
+
+        # V2 keywords
+        'from': TokenType.FROM,
 
         # Logical operators
         'and': TokenType.AND,
@@ -306,9 +326,26 @@ class Lexer:
                 self.position += 1
                 continue
 
+            # Asterisk (for wildcard like find *)
+            if self._current_char() == '*':
+                tokens.append(Token(TokenType.ALL, '*', self.position))
+                self.position += 1
+                continue
+
             # Dash (for ranges like [1-10])
             if self._current_char() == '-':
-                tokens.append(Token(TokenType.DASH, '-', self.position))
+                # Check for double dash (--)
+                if self._peek() == '-':
+                    tokens.append(Token(TokenType.DOUBLE_DASH, '--', self.position))
+                    self.position += 2
+                else:
+                    tokens.append(Token(TokenType.DASH, '-', self.position))
+                    self.position += 1
+                continue
+
+            # Dot (for .find)
+            if self._current_char() == '.':
+                tokens.append(Token(TokenType.DOT, '.', self.position))
                 self.position += 1
                 continue
 

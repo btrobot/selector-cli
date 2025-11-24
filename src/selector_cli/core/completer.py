@@ -33,7 +33,7 @@ class SelectorCompleter:
 
     # Field names (for WHERE clauses)
     FIELDS = [
-        'type', 'id', 'name', 'text', 'value', 'placeholder',
+        'type', 'id', 'name', 'text', 'value', 'placeholder', 'role',
         'visible', 'enabled', 'disabled', 'required', 'readonly',
         'index', 'tag'
     ]

@@ -41,7 +41,8 @@ class StrategyPriority(Enum):
     TYPE_NAME = 10        # input[type][name]
     TYPE_PLACEHOLDER = 11  # input[type][placeholder]
     ARIA_LABEL = 12       # [aria-label="value"]
-    XPATH_ID = 13         # //tag[@id="value"]
+    ROLE_ATTR = 13        # [role="value"]
+    XPATH_ID = 14         # //tag[@id="value"]
 
     # P2: Good strategies (cost 0.25-0.40)
     TITLE_ATTR = 20       # [title="value"]
@@ -162,6 +163,12 @@ class LocationStrategyEngine:
                 'name': 'ARIA_LABEL',
                 'priority': StrategyPriority.ARIA_LABEL,
                 'generator': self._generate_aria_label_selector,
+                'applies_to': ['*'],
+            },
+            {
+                'name': 'ROLE_ATTR',
+                'priority': StrategyPriority.ROLE_ATTR,
+                'generator': self._generate_role_selector,
                 'applies_to': ['*'],
             },
             # Note: TEXT_CONTENT has priority 30 (P3), moved to end of list
@@ -301,6 +308,13 @@ class LocationStrategyEngine:
         aria_label = element.attributes.get('aria-label')
         if aria_label:
             return f'[aria-label="{aria_label}"]'
+        return None
+
+    def _generate_role_selector(self, element: Element) -> Optional[str]:
+        """Generate role attribute selector: [role="value"]"""
+        role = element.attributes.get('role')
+        if role:
+            return f'[role="{role}"]'
         return None
 
     def _generate_title_attr_selector(self, element: Element) -> Optional[str]:

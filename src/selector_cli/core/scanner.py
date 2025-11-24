@@ -58,7 +58,7 @@ class ElementScanner:
         attributes = {}
         try:
             # Common attributes to extract
-            for attr in ['type', 'name', 'id', 'class', 'placeholder', 'value', 'href', 'disabled', 'required', 'readonly', 'aria-label', 'title', 'data-testid']:
+            for attr in ['type', 'name', 'id', 'class', 'placeholder', 'value', 'href', 'disabled', 'required', 'readonly', 'aria-label', 'title', 'data-testid', 'role']:
                 attr_value = await locator.get_attribute(attr)
                 if attr_value is not None:
                     attributes[attr] = attr_value
