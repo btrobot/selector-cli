@@ -133,12 +133,33 @@ class SelectorREPL:
 
     async def _initialize(self):
         """Initialize REPL"""
+        # Setup readline history
+        if READLINE_AVAILABLE:
+            try:
+                # Load history from file if it exists
+                if self.context.HISTORY_FILE.exists():
+                    readline.read_history_file(str(self.context.HISTORY_FILE))
+            except Exception:
+                # Silently ignore if we can't load history
+                pass
+
         # Initialize browser
         self.context.browser = BrowserManager()
         await self.context.browser.initialize(headless=False)
 
     async def _cleanup(self):
         """Cleanup resources"""
+        # Save readline history
+        if READLINE_AVAILABLE:
+            try:
+                # Ensure directory exists
+                self.context.HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+                # Save history to file
+                readline.write_history_file(str(self.context.HISTORY_FILE))
+            except Exception:
+                # Silently fail if we can't save history
+                pass
+
         print("\nShutting down...")
         if self.context.browser:
             await self.context.browser.close()
