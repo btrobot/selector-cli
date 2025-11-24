@@ -509,13 +509,27 @@ class Parser:
         return Command(verb='union', argument=collection_name, raw=raw)
 
     def _parse_intersect(self, raw: str) -> Command:
-        """Parse: intersect <collection_name>"""
+        """Parse: intersect <collection_name> | intersect where <condition>
+
+        Grammar:
+          intersect <collection_name>         - Intersect with saved collection
+          intersect where <condition>         - Intersect with elements matching condition
+
+        Examples:
+          intersect saved_collection
+          intersect where type="button"
+        """
         self._consume(TokenType.INTERSECT)
 
-        # Get collection name
+        # Check if next token is WHERE (for: intersect where <condition>)
+        if self._current_token().type == TokenType.WHERE:
+            condition = self._parse_where_clause_v2()
+            return Command(verb='intersect', condition_tree=condition, raw=raw)
+
+        # Otherwise expect collection name (for: intersect <collection_name>)
         name_token = self._current_token()
         if name_token.type != TokenType.IDENTIFIER:
-            raise ValueError("Expected collection name after 'intersect'")
+            raise ValueError("Expected 'where' or collection name after 'intersect'")
 
         collection_name = name_token.value
         self._advance()
