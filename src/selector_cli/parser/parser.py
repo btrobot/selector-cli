@@ -296,7 +296,11 @@ class Parser:
         return Command(verb='delete', argument=name, raw=raw)
 
     def _parse_set(self, raw: str) -> Command:
-        """Parse: set <name> = <value>"""
+        """Parse: set <name> = <target> [where <condition>]
+
+        Grammar: set <identifier> = target [where_clause]
+        Example: set var1 = input where type="email"
+        """
         self._consume(TokenType.SET)
 
         # Get variable name
@@ -309,11 +313,44 @@ class Parser:
         # Expect =
         self._consume(TokenType.EQUALS)
 
-        # Get value
-        value = self._parse_value()
+        # Parse target (element_type, index, all, etc.)
+        # Instead of _parse_value(), use _parse_target() to support:
+        # - element types: input, button, textarea, select
+        # - indices: [1], [1,2,3], [1-5]
+        # - all: "all" or "*"
+        target = self._parse_target()
 
-        # Store as "name=value" in argument
-        return Command(verb='set', argument=f"{var_name}={value}", raw=raw)
+        # Optional WHERE clause
+        condition_tree = None
+        if self._current_token().type == TokenType.WHERE:
+            condition_tree = self._parse_where_clause_v2()
+
+        # Store variable name and target info
+        # Format: "var_name\x00target_type\x00target_details\x00condition"
+        target_info = f"{var_name}\x00{target.type.name}"
+
+        # Add target details based on type
+        if target.type == TargetType.ELEMENT_TYPE:
+            target_info += f"\x00{target.element_type}"
+        elif target.type == TargetType.INDEX:
+            target_info += f"\x00{target.indices[0]}"
+        elif target.type == TargetType.INDICES:
+            indices_str = ",".join(map(str, target.indices))
+            target_info += f"\x00{indices_str}"
+        elif target.type == TargetType.RANGE:
+            target_info += f"\x00{target.range_start}-{target.range_end}"
+        elif target.type == TargetType.ALL:
+            target_info += f"\x00all"
+        else:
+            target_info += f"\x00"
+
+        # Add condition if present
+        if condition_tree:
+            target_info += f"\x00{repr(condition_tree)}"
+        else:
+            target_info += f"\x00"
+
+        return Command(verb='set', argument=target_info, target=target, condition_tree=condition_tree, raw=raw)
 
     def _parse_vars(self, raw: str) -> Command:
         """Parse: vars"""
