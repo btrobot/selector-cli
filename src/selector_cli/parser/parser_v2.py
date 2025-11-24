@@ -14,7 +14,7 @@ from selector_cli.parser.command import (
     Target, TargetType, Condition, Operator,
     ConditionNode, ConditionType, LogicOp
 )
-from selector_cli_v2.v2.command import CommandV2
+from selector_cli.parser.command_v2 import CommandV2
 
 
 class ParserV2(V1Parser):

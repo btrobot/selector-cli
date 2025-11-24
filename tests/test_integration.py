@@ -9,7 +9,7 @@ parent_path = Path(__file__).parent.parent
 sys.path.insert(0, str(parent_path))
 
 import asyncio
-from src.repl.main import SelectorREPL
+from selector_cli.repl.main import SelectorREPL
 
 async def test_integration():
     """Test full workflow with automated commands"""
@@ -33,7 +33,7 @@ async def test_integration():
     repl = SelectorREPL()
 
     # Initialize browser manually
-    from src.core.browser import BrowserManager
+    from selector_cli.core.browser import BrowserManager
     repl.context.browser = BrowserManager()
     await repl.context.browser.initialize(headless=True)
 

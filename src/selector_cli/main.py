@@ -1,11 +1,11 @@
 """
-Selector CLI - Main entry point
+Selector CLI v2.0 - Main entry point
 """
 import asyncio
 import sys
 import argparse
 import logging
-from .repl.main import SelectorREPL
+from .repl.main_v2 import SelectorREPLV2 as SelectorREPL
 
 
 def setup_logging(debug: bool = False):
@@ -21,7 +21,7 @@ def setup_logging(debug: bool = False):
 def main():
     """Main entry point"""
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Selector CLI - Interactive web element selection and code generation tool')
+    parser = argparse.ArgumentParser(description='Selector CLI v2.0 - Interactive web element selection with exploration workflow')
     parser.add_argument('--debug', '-d', action='store_true', help='Enable debug mode with detailed logging')
     args = parser.parse_args()
 

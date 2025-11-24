@@ -3,8 +3,8 @@ Tests for ParserV2 - Extended syntax parsing
 """
 import pytest
 from selector_cli.parser.command import TargetType, Operator
-from selector_cli_v2.v2.parser import ParserV2
-from selector_cli_v2.v2.command import CommandV2
+from selector_cli.parser.parser_v2 import ParserV2
+from selector_cli.parser.command_v2 import CommandV2
 
 
 class TestParserV2DotFindSyntax:

@@ -10,9 +10,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from selector_cli.core.browser import BrowserManager
-from selector_cli_v2.v2.context import ContextV2
-from selector_cli_v2.v2.parser import ParserV2
-from selector_cli_v2.v2.executor import ExecutorV2
+from selector_cli.core.context_v2 import ContextV2
+from selector_cli.parser.parser_v2 import ParserV2
+from selector_cli.commands.executor_v2 import ExecutorV2
 
 
 async def test_scan_add_list():

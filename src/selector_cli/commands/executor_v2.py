@@ -10,8 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from selector_cli.core.element import Element
 from selector_cli.core.scanner import ElementScanner
-from selector_cli_v2.v2.context import ContextV2
-from selector_cli_v2.v2.command import CommandV2
+from selector_cli.core.context_v2 import ContextV2
+from selector_cli.parser.command_v2 import CommandV2
 from selector_cli.parser.command import ConditionNode, ConditionType, Operator
 
 

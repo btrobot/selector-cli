@@ -4,11 +4,6 @@ V2 REPL (Read-Eval-Print Loop) - Integrated with three-layer architecture
 import asyncio
 import sys
 import logging
-from pathlib import Path
-
-# Add parent directory to path
-current_dir = Path(__file__).parent
-sys.path.insert(0, str(current_dir))
 
 from selector_cli.core.browser import BrowserManager
 from selector_cli.core.completer import SelectorCompleter
@@ -17,9 +12,9 @@ from selector_cli.core.storage import StorageManager
 from selector_cli.core.locator.logging import enable_debug_logging, disable_debug_logging
 
 # V2 imports
-from selector_cli_v2.v2.context import ContextV2
-from selector_cli_v2.v2.parser import ParserV2
-from selector_cli_v2.v2.executor import ExecutorV2
+from selector_cli.core.context_v2 import ContextV2
+from selector_cli.parser.parser_v2 import ParserV2
+from selector_cli.commands.executor_v2 import ExecutorV2
 
 # Try to import readline for autocomplete
 try:
