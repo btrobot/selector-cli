@@ -111,3 +111,13 @@ class Command:
 
     argument: Optional[str] = None  # For open URL, etc.
     raw: str = ""
+
+    # Phase 3: v2 enhancements
+    # Source layer for commands (add from temp, list candidates, etc.)
+    source: Optional[str] = None  # "temp", "candidates", or "workspace"
+
+    # Append mode for add command (add append <target>)
+    append_mode: bool = False
+
+    # Find mode: regular find vs refine (.find)
+    is_refine: bool = False

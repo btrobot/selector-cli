@@ -73,6 +73,16 @@ class BrowserManager:
         await asyncio.sleep(seconds)
         print(f"Waited {seconds} seconds")
 
+    async def query_selector_all(self, selector: str):
+        """Query all elements matching selector"""
+        if not self.page:
+            raise RuntimeError("Browser not initialized")
+        try:
+            elements = await self.page.query_selector_all(selector)
+            return elements
+        except Exception as e:
+            raise RuntimeError(f"query_selector_all error: {e}")
+
     async def close(self):
         """Close browser"""
         if self.page:

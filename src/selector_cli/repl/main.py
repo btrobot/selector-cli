@@ -72,7 +72,16 @@ class SelectorREPL:
         """Main REPL loop"""
         await self._initialize()
 
-        print("\nSelector CLI - Phase 1 MVP")
+        print("\n" + "=" * 60)
+        print("Selector CLI v2.0 - Three-Layer Architecture")
+        print("=" * 60)
+        print("New features:")
+        print("  • find div where role='button'  - Query DOM directly")
+        print("  • .find where visible           - Refine results")
+        print("  • add from temp                 - Add from temp layer")
+        print("  • list temp / list candidates   - View different layers")
+        print("  • scan button, input, div       - Multiple types")
+        print("=" * 60)
         print("Type 'help' for commands, 'quit' to exit\n")
 
         self.running = True
@@ -118,6 +127,17 @@ class SelectorREPL:
                 try:
                     result = await self.executor.execute(command, self.context)
                     print(result)
+
+                    # === v2: Show temp expiration hint after list (if applicable) ===
+                    if command.verb == 'list':
+                        # Check if temp is about to expire (5+ seconds old)
+                        if self.context.has_temp_results() and self.context._last_find_time:
+                            import time
+                            age = time.time() - self.context._last_find_time.timestamp()
+                            if age > 25:  # Warn when 5+ seconds old
+                                print(f"\n[Hint] Temp results are {int(age)}s old "
+                                      f"(expire in {30-int(age)}s)")
+
                 except Exception as e:
                     print(f"Execution error: {e}")
 
@@ -166,12 +186,11 @@ class SelectorREPL:
         print("Goodbye!")
 
     def _get_prompt(self) -> str:
-        """Get prompt string"""
+        """Get prompt string showing current state with v2 layer counts"""
         parts = ["selector"]
 
         # Add URL if page loaded
         if self.context.current_url:
-            # Get domain from URL
             url = self.context.current_url
             if '://' in url:
                 domain = url.split('://')[1].split('/')[0]
@@ -179,11 +198,26 @@ class SelectorREPL:
                 domain = url.split('/')[0]
             parts.append(f"({domain})")
 
-        # Add collection count if non-empty
-        if self.context.collection.count() > 0:
-            parts.append(f"[{self.context.collection.count()}]")
+        # === v2: Show layer counts (c:t:w) ===
+        counts = []
+        # candidates count
+        if len(self.context.candidates) > 0:
+            counts.append(f"c:{len(self.context.candidates)}")
+        # temp count (only show if has results)
+        if len(self.context.temp) > 0:
+            counts.append(f"t:{len(self.context.temp)}")
+        # workspace count
+        if len(self.context.workspace.elements) > 0:
+            counts.append(f"w:{len(self.context.workspace.elements)}")
 
-        return "".join(parts) + "> "
+        if counts:
+            parts.append(f"({' '.join(counts)})")
+
+        # For non-default focus, show focus indicator
+        if self.context.focus != 'candidates':
+            parts.append(f"[{self.context.focus}]")
+
+        return " ".join(parts) + "> "
 
 
 async def main():

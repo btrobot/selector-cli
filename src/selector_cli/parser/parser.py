@@ -35,6 +35,10 @@ class Parser:
             return self._parse_open(command_str)
         elif verb_token.type == TokenType.SCAN:
             return self._parse_scan(command_str)
+        elif verb_token.type == TokenType.FIND:
+            return self._parse_find(command_str)
+        elif verb_token.type == TokenType.DOT:
+            return self._parse_dot_prefixed(command_str)
         elif verb_token.type == TokenType.ADD:
             return self._parse_add(command_str)
         elif verb_token.type == TokenType.REMOVE:
@@ -123,19 +127,91 @@ class Parser:
         self._consume(TokenType.SCAN)
         return Command(verb='scan', raw=raw)
 
+    # ========== Phase 3: FIND Command ==========
+
+    def _parse_find(self, raw: str) -> Command:
+        """Parse: find <element_type>[,<type2>,...] [where <condition>]"""
+        self._consume(TokenType.FIND)
+
+        cmd = Command(verb='find', raw=raw)
+
+        # Parse element type/target
+        cmd.target = self._parse_target()
+
+        # Parse optional WHERE clause
+        if self._current_token().type == TokenType.WHERE:
+            cmd.condition_tree = self._parse_where_clause_v2()
+
+        return cmd
+
+    def _parse_dot_prefixed(self, raw: str) -> Command:
+        """Parse dot-prefixed commands: .find [where <condition>]"""
+        self._consume(TokenType.DOT)
+
+        # After dot, we expect FIND (for .find)
+        if self._current_token().type != TokenType.FIND:
+            raise ValueError(f"Unknown dot-prefixed command: .{self._current_token().value}")
+
+        self._consume(TokenType.FIND)
+
+        cmd = Command(verb='find', raw=raw, is_refine=True)
+
+        # Parse optional WHERE clause (no target needed for refine mode)
+        if self._current_token().type == TokenType.WHERE:
+            cmd.condition_tree = self._parse_where_clause_v2()
+
+        return cmd
+
     def _parse_add(self, raw: str) -> Command:
-        """Parse: add <target> [where <condition>]"""
+        """Parse: add [from <source>] [append] <target> [where <condition>]
+
+        Examples:
+            add button                    # v1 style
+            add from temp                 # v2: from temp
+            add append button             # v2: append mode
+            add append from candidates    # v2: both append and from
+            add from candidates where visible  # v2: with condition
+        """
         self._consume(TokenType.ADD)
 
-        # Parse target
-        target = self._parse_target()
+        cmd = Command(verb='add', raw=raw)
 
-        # Parse optional WHERE clause (Phase 2 - complex conditions)
-        condition_tree = None
+        # Parse optional modifiers: from <source> and/or append
+        # These can appear in any order
+        while True:
+            # Check for "from <source>"
+            if self._current_token().type == TokenType.FROM:
+                self._consume(TokenType.FROM)
+                source_token = self._current_token()
+                if source_token.type == TokenType.IDENTIFIER:
+                    cmd.source = source_token.value.lower()
+                    self._advance()
+                else:
+                    raise ValueError("Expected source layer (candidates/temp/workspace) after 'from'")
+                continue
+
+            # Check for "append"
+            if self._current_token().type == TokenType.APPEND:
+                cmd.append_mode = True
+                self._consume(TokenType.APPEND)
+                continue
+
+            # No more modifiers
+            break
+
+        # Parse target (optional - might have WHERE directly after modifiers)
+        if (self._current_token().type in (
+                TokenType.INPUT, TokenType.BUTTON, TokenType.SELECT,
+                TokenType.TEXTAREA, TokenType.LINK, TokenType.ALL,
+                TokenType.LBRACKET, TokenType.IDENTIFIER)
+                and self._current_token().type != TokenType.WHERE):
+            cmd.target = self._parse_target()
+
+        # Parse optional WHERE clause (Phase 2)
         if self._current_token().type == TokenType.WHERE:
-            condition_tree = self._parse_where_clause_v2()
+            cmd.condition_tree = self._parse_where_clause_v2()
 
-        return Command(verb='add', target=target, condition_tree=condition_tree, raw=raw)
+        return cmd
 
     def _parse_remove(self, raw: str) -> Command:
         """Parse: remove <target> [where <condition>]"""
@@ -157,24 +233,31 @@ class Parser:
         return Command(verb='clear', raw=raw)
 
     def _parse_list(self, raw: str) -> Command:
-        """Parse: list [<target>] [where <condition>]"""
+        """Parse: list [candidates|temp|workspace] [<target>] [where <condition>]"""
         self._consume(TokenType.LIST)
 
+        cmd = Command(verb='list', raw=raw)
+
+        # Check for source layer (v2 feature): list candidates, list temp, list workspace
+        if self._current_token().type == TokenType.IDENTIFIER:
+            source_value = self._current_token().value.lower()
+            if source_value in ['candidates', 'temp', 'workspace']:
+                cmd.source = source_value
+                self._advance()
+
         # Optional target
-        target = None
         if self._current_token().type in (
             TokenType.INPUT, TokenType.BUTTON, TokenType.SELECT,
             TokenType.TEXTAREA, TokenType.LINK, TokenType.ALL,
             TokenType.LBRACKET
         ):
-            target = self._parse_target()
+            cmd.target = self._parse_target()
 
         # Optional WHERE clause (Phase 2)
-        condition_tree = None
         if self._current_token().type == TokenType.WHERE:
-            condition_tree = self._parse_where_clause_v2()
+            cmd.condition_tree = self._parse_where_clause_v2()
 
-        return Command(verb='list', target=target, condition_tree=condition_tree, raw=raw)
+        return cmd
 
     def _parse_show(self, raw: str) -> Command:
         """Parse: show [<target>]"""
@@ -621,12 +704,12 @@ class Parser:
         """Parse target: element_type | [indices/range] | all"""
         current = self._current_token()
 
-        # Element type
+        # Element type - including all element types (v2: added DIV)
         if current.type in (
             TokenType.INPUT, TokenType.BUTTON, TokenType.SELECT,
-            TokenType.TEXTAREA, TokenType.LINK
+            TokenType.TEXTAREA, TokenType.LINK, TokenType.DIV
         ):
-            elem_type = current.value
+            elem_type = current.value.lower()
             self._advance()
             return Target(type=TargetType.ELEMENT_TYPE, element_type=elem_type)
 

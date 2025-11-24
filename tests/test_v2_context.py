@@ -5,7 +5,7 @@ import pytest
 import time
 from datetime import datetime
 from selector_cli.core.element import Element
-from selector_cli_v2.v2.context import ContextV2
+from selector_cli.core.context_v2 import ContextV2
 
 
 class TestContextV2ThreeLayerModel:

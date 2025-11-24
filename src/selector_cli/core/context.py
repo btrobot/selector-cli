@@ -32,9 +32,25 @@ class Context:
         self.browser: Optional[BrowserManager] = None
         self.current_url: Optional[str] = None
 
-        # Elements
-        self.all_elements: List[Element] = []
+        # === v1 Compatibility Layer ===
+        # v1: Single layer storage (mapped to v2 three-layer)
+        # These will be redirected to v2 layers via properties
+
+        # === v2 Three-Layer Architecture ===
+        # candidates: SCAN results (read-only source)
+        self._candidates: List[Element] = []
+
+        # temp: FIND results (TTL-based cache)
+        self._temp: List[Element] = []
+        self._last_find_time: Optional[datetime] = None
+        self.TEMP_TTL = 30  # seconds
+
+        # workspace: User collection (v1 collection)
+        # Reuses v1 collection for backward compatibility
         self.collection: ElementCollection = ElementCollection()
+
+        # Focus tracking (which layer is currently being operated on)
+        self._focus: str = 'candidates'  # candidates | temp | workspace
 
         # Variables - load from file
         self.variables: Dict[str, Any] = {}
@@ -199,3 +215,128 @@ class Context:
             return False
         except Exception:
             return False
+
+    # ============================================================================
+    # Phase 1: Three-Layer Architecture - v2 Features
+    # ============================================================================
+
+    # ---- v1 Backward Compatibility Layer ----
+
+    @property
+    def all_elements(self) -> List[Element]:
+        """
+        v1 compatibility: Get all elements (maps to candidates)
+        In v1, this was the only element storage.
+        In v2, this maps to candidates (SCAN results).
+        """
+        return self.candidates
+
+    @all_elements.setter
+    def all_elements(self, elements: List[Element]):
+        """
+        v1 compatibility: Set all elements (maps to candidates)
+        This is called by v1's update_elements() method.
+        """
+        self.candidates = elements
+
+    # ---- v2 Layer Properties ----
+
+    @property
+    def candidates(self) -> List[Element]:
+        """Get candidates (SCAN results) - read-only source layer"""
+        return self._candidates.copy()
+
+    @candidates.setter
+    def candidates(self, elements: List[Element]):
+        """Set candidates (SCAN results)"""
+        self._candidates = elements
+        self.last_scan_time = datetime.now()
+
+    @property
+    def temp(self) -> List[Element]:
+        """
+        Get temp (FIND results) with TTL-based expiration.
+        If temp has expired, returns empty list.
+        """
+        if self._is_temp_expired():
+            return []
+        return self._temp.copy()
+
+    @temp.setter
+    def temp(self, elements: List[Element]):
+        """
+        Set temp (FIND results) and reset TTL timer.
+        """
+        self._temp = elements
+        self._last_find_time = datetime.now()
+
+    @property
+    def workspace(self) -> ElementCollection:
+        """
+        v2: Get workspace (maps to v1 collection).
+        This is the user's persistent collection.
+        """
+        return self.collection
+
+    # ---- TTL Management ----
+
+    def _is_temp_expired(self) -> bool:
+        """Check if temp has expired based on TTL."""
+        if self._last_find_time is None:
+            return True
+        age = datetime.now() - self._last_find_time
+        return age.total_seconds() > self.TEMP_TTL
+
+    def has_temp_results(self) -> bool:
+        """Check if temp has non-expired results."""
+        return len(self.temp) > 0
+
+    def get_temp_age(self) -> Optional[float]:
+        """Get age of temp in seconds, or None if no temp."""
+        if self._last_find_time is None:
+            return None
+        age = datetime.now() - self._last_find_time
+        return age.total_seconds()
+
+    # ---- Focus Management ----
+
+    @property
+    def focus(self) -> str:
+        """Get current focus layer."""
+        return self._focus
+
+    @focus.setter
+    def focus(self, layer: str):
+        """Set current focus layer."""
+        if layer in ['candidates', 'temp', 'workspace']:
+            self._focus = layer
+
+    def get_focused_elements(self) -> List[Element]:
+        """Get elements from current focus layer."""
+        if self._focus == 'candidates':
+            return self.candidates
+        elif self._focus == 'temp':
+            return self.temp
+        else:  # workspace
+            return list(self.workspace.elements)
+
+    # ---- Element Access Helpers ----
+
+    def update_elements(self, elements: List[Element]):
+        """Update elements from scan - v1 compatible."""
+        # In v2, scan updates candidates (not temp or workspace)
+        self.candidates = elements
+        self.last_scan_time = datetime.now()
+        # Keep workspace intact (don't clear it like v1 did)
+
+    def get_element_by_index(self, index: int) -> Optional[Element]:
+        """Get element by index from candidates."""
+        for elem in self.candidates:
+            if elem.index == index:
+                return elem
+        return None
+
+    def get_elements_by_type(self, elem_type: str) -> List[Element]:
+        """Get all elements of a specific type from candidates."""
+        return [elem for elem in self.candidates if elem.tag == elem_type]
+

@@ -1,13 +1,14 @@
 """
 Command executor for Selector CLI
 """
-from typing import Optional, Any
+from typing import Optional, Any, List
 from ..parser.command import (
     Command, TargetType, Operator,
     ConditionNode, ConditionType, LogicOp  # Phase 2
 )
 from ..parser.parser import Parser  # For parsing macro commands
 from ..core.context import Context
+from ..core.element import Element
 from ..core.scanner import ElementScanner
 from ..core.storage import StorageManager  # Phase 4
 from ..core.variable_expander import VariableExpander  # Phase 4
@@ -34,6 +35,8 @@ class CommandExecutor:
             return await self._execute_open(command, context)
         elif command.verb == 'scan':
             return await self._execute_scan(command, context)
+        elif command.verb == 'find':
+            return await self._execute_find(command, context)
         elif command.verb == 'add':
             return await self._execute_add(command, context)
         elif command.verb == 'remove':
@@ -138,28 +141,176 @@ class CommandExecutor:
 
         return f"Scanned {len(elements)} elements"
 
-    async def _execute_add(self, command: Command, context: Context) -> str:
-        """Execute add command"""
+    # ========== Phase 4: FIND Command Execution ==========
+
+    async def _execute_find(self, command: Command, context: Context) -> str:
+        """Execute FIND command - query DOM directly"""
+
+        # Check if this is refine mode (.find)
+        if command.is_refine:
+            return await self._execute_refine(command, context)
+
+        # Regular find - need element type/target
         if not command.target:
-            return "Error: No target specified"
+            return "Error: FIND requires element type"
 
-        # Get elements to add based on target
-        elements_to_add = self._resolve_target(command.target, context)
+        element_type = command.target.element_type
 
-        # Apply condition if present (Phase 2 or Phase 1)
+        if not context.browser or not context.browser.page:
+            return "Error: No page loaded. Use 'open <url>' first."
+
+        try:
+            # Query DOM using browser's query_selector_all
+            elements = await context.browser.query_selector_all(element_type)
+
+            if not elements:
+                context.temp = []  # Clear temp
+                return f"Found 0 {element_type}(s) → temp"
+
+            # Convert browser elements to Element objects
+            from ..core.element import Element
+            result_elements = []
+
+            for i, elem in enumerate(elements):
+                try:
+                    # Get element properties via JavaScript evaluation
+                    props = await elem.evaluate('''(el) => ({
+                        tagName: el.tagName.toLowerCase(),
+                        id: el.id,
+                        className: el.className,
+                        name: el.getAttribute('name'),
+                        type: el.getAttribute('type'),
+                        value: el.value,
+                        text: el.textContent?.trim(),
+                        href: el.getAttribute('href'),
+                        visible: el.offsetParent !== null,
+                        enabled: !el.disabled,
+                        role: el.getAttribute('role')
+                    })''')
+
+                    # Create Element object
+                    element = Element(
+                        index=i,
+                        tag=props['tagName'],
+                        element_id=props['id'] or '',
+                        classes=props['className'] or '',
+                        name=props['name'] or '',
+                        type=props['type'] or '',
+                        value=props['value'] or '',
+                        text=props['text'] or '',
+                        href=props['href'] or '',
+                        visible=bool(props['visible']),
+                        enabled=bool(props['enabled']),
+                        role=props['role'] or ''
+                    )
+
+                    # Store raw element reference for highlighting
+                    element._raw_element = elem
+
+                    result_elements.append(element)
+
+                except Exception as e:
+                    # If eval fails, create minimal element
+                    element = Element(index=i, tag=element_type)
+                    element._raw_element = elem
+                    result_elements.append(element)
+
+            # Apply WHERE condition if present
+            if command.condition_tree:
+                result_elements = self._filter_by_condition_tree(result_elements, command.condition_tree)
+
+            # Store to temp layer (triggers TTL timer)
+            context.temp = result_elements
+
+            # Update focus to temp
+            context.focus = 'temp'
+
+            return f"Found {len(result_elements)} {element_type}(s) → temp"
+
+        except Exception as e:
+            if "strict mode violation" in str(e):
+                return f"FIND error: Element not found in strict mode"
+            return f"FIND error: {type(e).__name__}: {e}"
+
+    async def _execute_refine(self, command: Command, context: Context) -> str:
+        """Execute .find (refine mode) - filter temp layer"""
+
+        if not context.has_temp_results():
+            return "Error: No temp results to refine. Use 'find' first."
+
+        temp_elements = context.temp
+
+        # Apply WHERE condition
         if command.condition_tree:
-            elements_to_add = self._filter_by_condition_tree(elements_to_add, command.condition_tree)
-        elif command.condition:
-            elements_to_add = self._filter_by_condition(elements_to_add, command.condition)
+            filtered = self._filter_by_condition_tree(temp_elements, command.condition_tree)
+        else:
+            # No condition means list all temp
+            filtered = temp_elements
 
-        # Add to collection
+        # Update temp (this resets the TTL timer)
+        context.temp = filtered
+
+        # Keep focus on temp
+        context.focus = 'temp'
+
+        return f"Refined to {len(filtered)} element(s) → temp"
+
+    async def _execute_add(self, command: Command, context: Context) -> str:
+        """Execute add command - enhanced with v2 features (source, append, where)"""
+
+        # === v2: Determine source elements ===
+        if command.source:
+            # Use specified source layer (temp/candidates/workspace)
+            source_elements = self._get_source_elements(command.source, context)
+        else:
+            # Default: use candidates (v1 behavior compatible)
+            # But if we have no target, maybe we're adding all from source
+            source_elements = context.candidates
+
+        if not source_elements:
+            layer_name = command.source or "candidates"
+            return f"No elements in {layer_name}"
+
+        # === v2: Apply WHERE condition if present ===
+        if command.condition_tree:
+            filtered_elements = self._filter_by_condition_tree(source_elements, command.condition_tree)
+        elif command.condition:
+            filtered_elements = self._filter_by_condition(source_elements, command.condition)
+        else:
+            filtered_elements = source_elements
+
+        # === v2: Filter by target if present ===
+        if command.target:
+            target_filtered = self._resolve_target(command.target, context)
+            # Intersect filtered_elements with target_filtered
+            target_elements = []
+            for elem in filtered_elements:
+                if any(e.uuid == elem.uuid for e in target_filtered):
+                    target_elements.append(elem)
+            elements_to_add = target_elements
+        else:
+            elements_to_add = filtered_elements
+
+        # === v2: Add to workspace (collection) ===
         added_count = 0
+        existing_count = len(context.workspace.elements)
+
         for elem in elements_to_add:
-            if not context.collection.contains(elem):
-                context.collection.add(elem)
+            if not context.workspace.contains(elem):
+                context.workspace.add(elem)
                 added_count += 1
 
-        return f"Added {added_count} element(s) to collection. Total: {context.collection.count()}"
+        new_total = len(context.workspace.elements)
+
+        # === v2: Format result based on mode ===
+        if command.append_mode:
+            return f"Appended {added_count} element(s) → workspace ({new_total} total)"
+        else:
+            # Regular add (v1 style) - note: we don't clear anymore in v2
+            if added_count > 0:
+                return f"Added {added_count} element(s) → workspace ({new_total} total)"
+            else:
+                return f"No new elements added (all already in workspace)"
 
     async def _execute_remove(self, command: Command, context: Context) -> str:
         """Execute remove command"""
@@ -191,27 +342,46 @@ class CommandExecutor:
         return f"Cleared {count} element(s) from collection"
 
     async def _execute_list(self, command: Command, context: Context) -> str:
-        """Execute list command"""
-        # Determine what to list
-        if command.target:
-            elements = self._resolve_target(command.target, context)
-        else:
-            # List collection if no target
-            elements = list(context.collection.elements)
+        """Execute list command - enhanced with v2 features (source, where)"""
 
-        # Apply condition if present (Phase 2 or Phase 1)
+        # === v2: Determine source layer ===
+        if command.source:
+            # List specific layer
+            source_elements = self._get_source_elements(command.source, context)
+        elif command.target:
+            # v1: list with target
+            source_elements = self._resolve_target(command.target, context)
+        else:
+            # Default: list workspace (v1 compatible)
+            source_elements = list(context.workspace.elements)
+
+        # Check if temp expired (for better user feedback)
+        if command.source == 'temp' and not context.has_temp_results():
+            if context._last_find_time is not None:
+                return "0 elements (temp expired)"
+            else:
+                return "0 elements in temp"
+
+        if not source_elements:
+            layer_name = command.source or "workspace"
+            return f"0 elements in {layer_name}"
+
+        # === v2: Apply WHERE condition ===
         if command.condition_tree:
-            elements = self._filter_by_condition_tree(elements, command.condition_tree)
+            elements = self._filter_by_condition_tree(source_elements, command.condition_tree)
         elif command.condition:
-            elements = self._filter_by_condition(elements, command.condition)
+            elements = self._filter_by_condition(source_elements, command.condition)
+        else:
+            elements = source_elements
+
+        if not elements:
+            return "0 elements match the filter"
 
         # Format output
-        if not elements:
-            return "No elements found"
-
         lines = []
-        for elem in elements:
-            lines.append(f"  {elem}")
+        for i, elem in enumerate(elements):
+            # Show temp age hint for first temp element
+            lines.append(f"[{i}] {elem}")
 
         return f"Elements ({len(elements)}):\n" + "\n".join(lines)
 
@@ -1033,3 +1203,22 @@ Examples:
             return float(value)
         except (ValueError, TypeError):
             return 0.0
+
+    # ========== Phase 4: v2 Helper Methods ==========
+
+    def _get_source_elements(self, source: str, context: Context) -> List[Element]:
+        """Get elements from specified source layer"""
+        if source == 'temp':
+            return context.temp
+        elif source == 'candidates':
+            return context.candidates
+        elif source == 'workspace':
+            return list(context.workspace.elements)
+        else:
+            # Default to candidates
+            return context.candidates
+
+    def _element_in_list(self, element: Element, element_list: List[Element]) -> bool:
+        """Check if element is in list (by UUID)"""
+        return any(e.uuid == element.uuid for e in element_list)
+
