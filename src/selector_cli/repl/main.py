@@ -128,16 +128,6 @@ class SelectorREPL:
                     result = await self.executor.execute(command, self.context)
                     print(result)
 
-                    # === v2: Show temp expiration hint after list (if applicable) ===
-                    if command.verb == 'list':
-                        # Check if temp is about to expire (5+ seconds old)
-                        if self.context.has_temp_results() and self.context._last_find_time:
-                            import time
-                            age = time.time() - self.context._last_find_time.timestamp()
-                            if age > 25:  # Warn when 5+ seconds old
-                                print(f"\n[Hint] Temp results are {int(age)}s old "
-                                      f"(expire in {30-int(age)}s)")
-
                 except Exception as e:
                     print(f"Execution error: {e}")
 

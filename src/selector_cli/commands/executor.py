@@ -355,12 +355,9 @@ class CommandExecutor:
             # Default: list workspace (v1 compatible)
             source_elements = list(context.workspace.elements)
 
-        # Check if temp expired (for better user feedback)
-        if command.source == 'temp' and not context.has_temp_results():
-            if context._last_find_time is not None:
-                return "0 elements (temp expired)"
-            else:
-                return "0 elements in temp"
+        # Check if temp is empty (for better user feedback)
+        if command.source == 'temp' and not context.temp:
+            return "0 elements in temp"
 
         if not source_elements:
             layer_name = command.source or "workspace"

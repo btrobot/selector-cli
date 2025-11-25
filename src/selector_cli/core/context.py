@@ -40,10 +40,8 @@ class Context:
         # candidates: SCAN results (read-only source)
         self._candidates: List[Element] = []
 
-        # temp: FIND results (TTL-based cache)
-        self._temp: List[Element] = []
-        self._last_find_time: Optional[datetime] = None
-        self.TEMP_TTL = 30  # seconds
+        # temp: FIND results (current query results)
+        self.temp: List[Element] = []
 
         # workspace: User collection (v1 collection)
         # Reuses v1 collection for backward compatibility
@@ -252,23 +250,10 @@ class Context:
         self._candidates = elements
         self.last_scan_time = datetime.now()
 
-    @property
-    def temp(self) -> List[Element]:
-        """
-        Get temp (FIND results) with TTL-based expiration.
-        If temp has expired, returns empty list.
-        """
-        if self._is_temp_expired():
-            return []
-        return self._temp.copy()
-
-    @temp.setter
-    def temp(self, elements: List[Element]):
-        """
-        Set temp (FIND results) and reset TTL timer.
-        """
-        self._temp = elements
-        self._last_find_time = datetime.now()
+    # Note: temp is now a simple attribute (no TTL)
+    # Removed: temp property with TTL logic
+    # Removed: _last_find_time tracking
+    # temp is directly accessible and mutable
 
     @property
     def workspace(self) -> ElementCollection:
@@ -278,25 +263,11 @@ class Context:
         """
         return self.collection
 
-    # ---- TTL Management ----
-
-    def _is_temp_expired(self) -> bool:
-        """Check if temp has expired based on TTL."""
-        if self._last_find_time is None:
-            return True
-        age = datetime.now() - self._last_find_time
-        return age.total_seconds() > self.TEMP_TTL
-
-    def has_temp_results(self) -> bool:
-        """Check if temp has non-expired results."""
-        return len(self.temp) > 0
-
-    def get_temp_age(self) -> Optional[float]:
-        """Get age of temp in seconds, or None if no temp."""
-        if self._last_find_time is None:
-            return None
-        age = datetime.now() - self._last_find_time
-        return age.total_seconds()
+    # Note: TTL management removed - temp is now a simple attribute
+    # Removed methods:
+    # - _is_temp_expired()
+    # - has_temp_results()
+    # - get_temp_age()
 
     # ---- Focus Management ----
 
