@@ -76,11 +76,11 @@ class SelectorREPL:
         print("Selector CLI v2.0 - Three-Layer Architecture")
         print("=" * 60)
         print("New features:")
-        print("  • find div where role='button'  - Query DOM directly")
-        print("  • .find where visible           - Refine results")
-        print("  • add from temp                 - Add from temp layer")
-        print("  • list temp / list candidates   - View different layers")
-        print("  • scan button, input, div       - Multiple types")
+        print("  * find div where role='button'  - Query DOM directly")
+        print("  * .find where visible           - Refine results")
+        print("  * add from temp                 - Add from temp layer")
+        print("  * list temp / list candidates   - View different layers")
+        print("  * scan button, input, div       - Multiple types")
         print("=" * 60)
         print("Type 'help' for commands, 'quit' to exit\n")
 
@@ -132,8 +132,9 @@ class SelectorREPL:
                     print(f"Execution error: {e}")
 
             except KeyboardInterrupt:
-                # Ctrl-C: Cancel current input and show new prompt
-                print("^C")
+                # Ctrl-C: Clear entire line and show new prompt
+                # \r returns to beginning, \033[2K clears entire line, \r returns again
+                print("\r\033[2K\r", end="")
                 continue
             except EOFError:
                 # Ctrl-D: Exit the program
