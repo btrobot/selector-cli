@@ -48,57 +48,20 @@ class TestContextThreeLayerModel:
 
         assert len(ctx.temp) == 1
         assert ctx.temp[0].tag == 'div'
-        assert ctx._last_find_time is not None
-        assert ctx.has_temp_results()
-
-    def test_temp_expiration(self):
-        """Test temp state expiration"""
-        ctx = Context(enable_history_file=False)
-        ctx.TEMP_TTL = 1  # 1 second for testing
-
-        # Set temp
-        ctx.temp = [Element(index=0, uuid='a', tag='button')]
-        assert len(ctx.temp) == 1
-        assert ctx.has_temp_results()
-
-        # Wait for expiration
-        time.sleep(1.5)
-
-        # Should be expired
-        assert len(ctx.temp) == 0
-        assert not ctx.has_temp_results()
-
-    def test_temp_ttl_reset(self):
-        """Test that setting temp resets TTL timer"""
-        ctx = Context(enable_history_file=False)
-        ctx.TEMP_TTL = 2
-
-        # Set temp
-        ctx.temp = [Element(index=0, uuid='a', tag='button')]
-        first_time = ctx._last_find_time
-        time.sleep(0.5)
-
-        # Reset temp (should reset timer)
-        ctx.temp = [Element(index=1, uuid='b', tag='input')]
-        second_time = ctx._last_find_time
-
-        assert second_time > first_time
-        assert len(ctx.temp) == 1
-        assert ctx.temp[0].tag == 'input'
 
     def test_temp_copy_not_reference(self):
-        """Test that temp property returns copy, not direct reference"""
+        """Test that temp property returns consistent reference"""
         ctx = Context(enable_history_file=False)
         ctx.temp = [Element(index=0, uuid='a', tag='button')]
 
         temp1 = ctx.temp
         temp2 = ctx.temp
 
-        # Should be different list objects (copies)
-        assert temp1 is not temp2
-        # But same content
-        assert len(temp1) == len(temp2) == 1
-        assert temp1[0].tag == temp2[0].tag == 'button'
+        # Should be same list object (no copy needed without TTL)
+        assert temp1 is temp2
+        # But modifying temp still works
+        assert len(temp1) == 1
+        assert temp1[0].tag == 'button'
 
     def test_focus_management(self):
         """Test focus management"""
@@ -141,25 +104,6 @@ class TestContextThreeLayerModel:
         focused = ctx.get_focused_elements()
         assert len(focused) == 1
         assert focused[0] == elem2
-
-    def test_get_temp_age(self):
-        """Test getting temp age"""
-        ctx = Context(enable_history_file=False)
-
-        # No temp set
-        assert ctx.get_temp_age() is None
-
-        # Set temp
-        ctx.temp = [Element(index=0, uuid='a', tag='button')]
-        age = ctx.get_temp_age()
-        assert age is not None
-        assert 0 <= age < 0.1  # Should be very recent
-
-        # Wait a bit
-        time.sleep(0.5)
-        age = ctx.get_temp_age()
-        assert age is not None
-        assert 0.5 <= age < 0.6
 
     def test_three_layers_independent(self):
         """Test that three layers maintain independent state"""
@@ -306,57 +250,3 @@ class TestContextV1BackwardCompatibility:
         assert inputs[0].tag == 'input'
 
 
-class TestContextTTLBehavior:
-    """Test TTL (Time To Live) behavior"""
-
-    def test_temp_returns_empty_when_expired(self):
-        """Test that expired temp returns empty list"""
-        ctx = Context(enable_history_file=False)
-        ctx.TEMP_TTL = 1
-
-        ctx.temp = [Element(index=0, uuid='a', tag='button')]
-        assert len(ctx.temp) == 1
-
-        time.sleep(1.5)
-
-        # Should return empty list, not None
-        expired_temp = ctx.temp
-        assert expired_temp == []
-        assert isinstance(expired_temp, list)
-
-    def test_temp_setter_resets_last_find_time(self):
-        """Test that setting temp resets the timestamp"""
-        ctx = Context(enable_history_file=False)
-        ctx.TEMP_TTL = 10
-
-        # First set
-        ctx.temp = [Element(index=0, uuid='a', tag='button')]
-        first_time = ctx._last_find_time
-        time.sleep(0.1)
-
-        # Second set
-        ctx.temp = [Element(index=1, uuid='b', tag='input')]
-        second_time = ctx._last_find_time
-
-        assert second_time > first_time
-
-    def test_has_temp_results_checks_expiration(self):
-        """Test that has_temp_results checks expiration"""
-        ctx = Context(enable_history_file=False)
-        ctx.TEMP_TTL = 1
-
-        ctx.temp = [Element(index=0, uuid='a', tag='button')]
-        assert ctx.has_temp_results() is True
-
-        time.sleep(1.5)
-
-        assert ctx.has_temp_results() is False
-
-    def test_temp_access_before_setting(self):
-        """Test accessing temp before it's set"""
-        ctx = Context(enable_history_file=False)
-
-        # Should return empty list, not error
-        assert ctx.temp == []
-        assert not ctx.has_temp_results()
-        assert ctx.get_temp_age() is None
