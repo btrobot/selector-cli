@@ -132,9 +132,12 @@ class SelectorREPL:
                     print(f"Execution error: {e}")
 
             except KeyboardInterrupt:
-                print("\nUse 'quit' to exit")
+                # Ctrl-C: Cancel current input and show new prompt
+                print("^C")
                 continue
             except EOFError:
+                # Ctrl-D: Exit the program
+                print("\nExiting...")
                 break
             except Exception as e:
                 print(f"Error: {e}")
