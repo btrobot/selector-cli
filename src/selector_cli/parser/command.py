@@ -116,6 +116,9 @@ class Command:
     # Source layer for commands (add from temp, list candidates, etc.)
     source: Optional[str] = None  # "temp", "candidates", or "workspace"
 
+    # Destination layer for commands (add to workspace, etc.)
+    destination: Optional[str] = None  # "candidates" or "workspace"
+
     # Append mode for add command (add append <target>)
     append_mode: bool = False
 

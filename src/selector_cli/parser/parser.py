@@ -163,18 +163,30 @@ class Parser:
         return cmd
 
     def _parse_add(self, raw: str) -> Command:
-        """Parse: add [from <source>] [append] <target> [where <condition>]
+        """Parse: add [to <destination>] [from <source>] [append] <target> [where <condition>]
 
         Examples:
-            add button                    # v1 style
-            add from temp                 # v2: from temp
-            add append button             # v2: append mode
-            add append from candidates    # v2: both append and from
-            add from candidates where visible  # v2: with condition
+            add                          # temp → candidates (default)
+            add to candidates            # explicit: temp → candidates
+            add to workspace             # candidates → workspace (needs from)
+            add to workspace from candidates  # explicit: candidates → workspace
+            add from temp                # v2: from temp
+            add append                   # append to candidates
+            add to workspace append      # append to workspace
         """
         self._consume(TokenType.ADD)
 
         cmd = Command(verb='add', raw=raw)
+
+        # Parse optional "to <destination>"
+        if self._current_token().type == TokenType.TO:
+            self._consume(TokenType.TO)
+            dest_token = self._current_token()
+            if dest_token.type == TokenType.IDENTIFIER:
+                cmd.destination = dest_token.value.lower()
+                self._advance()
+            else:
+                raise ValueError("Expected destination (candidates/workspace) after 'to'")
 
         # Parse optional modifiers: from <source> and/or append
         # These can appear in any order
@@ -210,6 +222,10 @@ class Parser:
         # Parse optional WHERE clause (Phase 2)
         if self._current_token().type == TokenType.WHERE:
             cmd.condition_tree = self._parse_where_clause_v2()
+
+        # Set default destination if not specified
+        if not hasattr(cmd, 'destination') or cmd.destination is None:
+            cmd.destination = 'candidates'  # Default: add to candidates
 
         return cmd
 

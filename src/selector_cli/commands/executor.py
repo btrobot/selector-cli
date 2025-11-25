@@ -291,26 +291,53 @@ class CommandExecutor:
         else:
             elements_to_add = filtered_elements
 
-        # === v2: Add to workspace (collection) ===
-        added_count = 0
-        existing_count = len(context.workspace.elements)
+        # === v2: Determine destination layer ===
+        # Default: add to candidates (not workspace)
+        # To add to workspace, use: add workspace from candidates
+        destination = command.destination or 'candidates'
 
-        for elem in elements_to_add:
-            if not context.workspace.contains(elem):
-                context.workspace.add(elem)
-                added_count += 1
+        if destination == 'candidates':
+            # Add to candidates (accumulate)
+            added_count = 0
+            existing_count = len(context.candidates)
 
-        new_total = len(context.workspace.elements)
+            for elem in elements_to_add:
+                if not any(e.uuid == elem.uuid for e in context.candidates):
+                    context.candidates.append(elem)
+                    added_count += 1
 
-        # === v2: Format result based on mode ===
-        if command.append_mode:
-            return f"Appended {added_count} element(s) → workspace ({new_total} total)"
-        else:
-            # Regular add (v1 style) - note: we don't clear anymore in v2
-            if added_count > 0:
-                return f"Added {added_count} element(s) → workspace ({new_total} total)"
+            new_total = len(context.candidates)
+
+            if command.append_mode:
+                return f"Appended {added_count} element(s) → candidates ({new_total} total)"
             else:
-                return f"No new elements added (all already in workspace)"
+                if added_count > 0:
+                    return f"Added {added_count} element(s) → candidates ({new_total} total)"
+                else:
+                    return f"No new elements added (all already in candidates)"
+
+        elif destination == 'workspace':
+            # Add to workspace (final confirmation)
+            added_count = 0
+            existing_count = len(context.workspace.elements)
+
+            for elem in elements_to_add:
+                if not context.workspace.contains(elem):
+                    context.workspace.add(elem)
+                    added_count += 1
+
+            new_total = len(context.workspace.elements)
+
+            if command.append_mode:
+                return f"Appended {added_count} element(s) → workspace ({new_total} total)"
+            else:
+                if added_count > 0:
+                    return f"Added {added_count} element(s) → workspace ({new_total} total)"
+                else:
+                    return f"No new elements added (all already in workspace)"
+
+        else:
+            return f"Error: Unknown destination '{destination}'"
 
     async def _execute_remove(self, command: Command, context: Context) -> str:
         """Execute remove command"""

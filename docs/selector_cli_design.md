@@ -11,88 +11,115 @@
 
 ## 设计理念
 
-### 核心思想：探索-精炼-确认
+### 核心思想：探索-筛选-确认
 
-Selector CLI 的设计围绕**元素的探索与确认流程**展开，模拟人类分析网页时的思维模式：
+Selector CLI 的设计围绕**元素的渐进式分析流程**展开，模拟人类分析网页时的思维模式：
 
-1. **探索（Explore）**："这个页面有什么可交互的元素？"
-2. **精炼（Refine）**："让我看看这些按钮中哪个是我要的"
-3. **确认（Confirm）**："这个元素有价值，保存起来研究"
+1. **探索（Explore）**："这个页面有什么元素？让我快速看看"
+2. **筛选（Select）**："这些元素看起来有趣，值得研究"
+3. **确认（Confirm）**："这几个最有价值，需要重点测试"
 
-基于此，我们设计了三层存储架构，分别对应三种不同的用户意图和元素生命周期。
+基于此，我们设计了三层递进式架构，分别对应三种不同的用户意图和元素生命周期。
 
 ### 存储哲学
 
-所有查询命令（`scan`/`find`）**统一存储到 temp**，差异在于**使用模式**：
+查询命令采用不同的存储策略：
 
-- **scan**：宽泛采集，用于**探索未知**
-- **find**：精准查询，用于**定位已知**
-- **temp**：当前查询结果（覆盖语义），支持反复精炼
+- **find**：精准查询，结果存储到 **temp**（覆盖语义）
+- **scan**：宽泛探索，结果直接存储到 **candidates**（覆盖语义）
+- **temp**：当前查询结果的草稿纸，支持反复精炼（find/.find）
+- **candidates**：感兴趣的元素集合，等待深度分析
 - **workspace**：确认有价值元素的持久存储
 
 ---
 
 ## 三层架构详解
 
-### 1. Candidates（候选集）
+### 1. Candidates（候选区）
 
-**来源**：`scan` 命令
-**用途**：可能有兴趣的元素集合
-**生命周期**：持久（页面级，直到下次 scan）
-**用户意图**："先收下来看看"
+**来源**：`scan` 命令 + `add to candidates`
+**用途**：**感兴趣、值得研究**的元素集合
+**生命周期**：持久（页面级，直到手动清理）
+**用户意图**："这些元素看起来不错，值得仔细研究"
 
 ```bash
 scan              # 探索页面，存入 candidates
-scan +img         # 扩展探索范围，加入 img
-scan img          # 专注探索 img，清空其他
+count candidates  # 查看候选区元素数量
+scan +img         # 扩展探索，加入 img
+candidates        # 清空并重新探索 img
+
+# 从 temp 添加感兴趣的元素
+add to candidates          # 将 temp 全部添加到 candidates
+add [1,3,5] to candidates  # 从 temp 选择添加
 ```
 
 **特点**：
-- 页面加载后执行一次
-- 支持增量扩展（`+tag`）和覆盖（`tag`）
-- 作为全局探索层，元素相对稳定
+- 页面加载后执行 scan 初始化候选区
+- 累积待研究的元素集合
+- 作为筛选层，保存所有潜在有价值的元素
+- 支持从 temp 补充添加
 
 ### 2. Temp（当前查询结果）
 
 **来源**：`find` / `.find` 命令
 **用途**：当前查询结果，支持精炼
-**生命周期**：瞬时（直到下次查询覆盖）
+**生命周期**：瞬时（下次 `find` 覆盖）
 **用户意图**："当前查询结果"
 
 ```bash
-find button           # 查询按钮 → temp
-.find where visible   # 精炼结果 → temp（覆盖）
+find button           # 查询按钮 → temp（覆盖）
+.find where visible   # 精炼当前 temp 结果
 find input            # 新查询 → temp（覆盖）
+count temp            # 查看当前 temp 数量
 ```
 
 **特点**：
-- 反复覆盖的草稿纸
-- 支持链式精炼（`.find`）
-- 被下次查询覆盖，不影响其他层
+- `find` 结果的草稿纸，反复覆盖
+- 支持链式精炼（`.find` 从当前 temp 过滤）
+- 仅用于快速试探，不长期保存
 
 ### 3. Workspace（工作区）
 
-**来源**：`add` 命令
+**来源**：`add to workspace` 命令
 **用途**：确认有价值的元素
 **生命周期**：会话级持久
 **用户意图**："这个真的有用"
 
 ```bash
-add temp              # 将 temp 移到 workspace
-add workspace [1,3]   # 从 candidates 或 temp 选择添加
+add to workspace                # 从当前视图（candidates/temp）全部添加
+add [1,3,5] to workspace        # 从当前视图选择添加
+add [2,4] to workspace from candidates  # 明确从 candidates 添加
+
+# 查看工作区
+list workspace    # 列出工作区元素详情
+count workspace   # 统计工作区元素数量
 ```
 
 **特点**：
 - 累积确认的元素
 - 用于预览（preview）、高亮（highlight）
 - 跨查询持久保存
+- 来源可以是 candidates 或 temp
 
 ### 架构关系图
 
 ```
-candidates   ← scan 存入
-temp         ← find 存入（覆盖）
-workspace    ← add 存入（累积）
+temp         ← find / .find（当前查询，反复覆盖）
+candidates   ← scan（页面级探索）
+             ← add to candidates（从 temp 筛选）
+workspace    ← add to workspace（从 candidates/temp 确认）
+```
+
+**三层递进流程**:
+1. **探索层（temp）**: 通过 `find` 快速试探，反复覆盖
+2. **筛选层（candidates）**: 通过 `add to candidates` 累积感兴趣的元素
+3. **确认层（workspace）**: 通过 `add to workspace` 从 candidates 挑选最有价值的元素
+
+**数据流动示例**:
+```bash
+find button              # 探索：button → temp
+add to candidates        # 筛选：temp → candidates
+add to workspace [1,3]   # 确认：candidates → workspace
 ```
 
 ---
@@ -101,15 +128,13 @@ workspace    ← add 存入（累积）
 
 ### scan - 探索命令
 
-**语义**：探索页面元素，扩展候选集
+**语义**：探索页面元素，直接存入候选区
 
 **语法**：
 ```bash
-scan              # 扫描默认原子元素（button/input/select/textarea/a）
+scan              # 扫描默认原子元素 → candidates（覆盖）
 scan +img         # 扩展：默认 + img
-scan +img +span   # 扩展：默认 + img + span
-scan img          # 覆盖：只扫描 img
-scan img span     # 覆盖：只扫描 img 和 span
+candidates        # 覆盖：只扫描 img
 ```
 
 **默认原子元素**（5个）：
@@ -119,40 +144,54 @@ scan img span     # 覆盖：只扫描 img 和 span
 - `textarea` - 多行文本
 - `a` - 链接
 
-**存储行为**：**覆盖 temp**
-**使用建议**：页面加载后执行，作为全局探索
+**存储行为**：**覆盖 candidates（页面级持久）**
+**使用建议**：页面加载后执行，建立全局候选集
 
 ### find - 定位命令
 
-**语义**：精准查询特定元素，精炼结果
+**语义**：精准查询特定元素，存入 temp（覆盖）
 
 **语法**：
 ```bash
-find button                 # 查询所有 button
+find button                 # 查询所有 button → temp（覆盖）
 find input where visible    # 带条件的查询
 find div where class contains "modal"  # 查询容器
 
-# 精炼模式（从 temp 过滤）
-.find where visible         # 过滤出可见元素
-.find where text contains "Login"  # 进一步过滤
+# 精炼模式（从当前 temp 过滤）
+.find where visible         # 过滤当前 temp，结果仍存储到 temp
+.find where text contains "Login"  # 进一步精炼
 ```
 
 **支持的所有 HTML 元素**：任何有效的 HTML 标签
 **存储行为**：**覆盖 temp**
 **使用建议**：用于快速试探和精炼，反复使用
 
+**注意**：`.find` 也是从当前 temp 过滤，结果仍存入 temp（覆盖）
+
 ### add - 确认命令
 
-**语义**：将临时结果确认到工作区
+**语义**：将结果从一层移动到另一层（筛选与确认）
 
-**语法**：
+**完整语法**：
 ```bash
-add temp              # 将 temp 添加到 workspace
-add workspace [1,3,5]  # 从当前视图选择添加
+# 筛选：从 temp 添加到 candidates
+add [1,3,5] to candidates        # 从 temp 选择添加到 candidates
+add [2,4] to candidates from temp  # 明确从 temp 源
+
+# 确认：从 candidates/temp 添加到 workspace
+add to workspace                   # 从当前视图（candidates/temp）全部添加
+add [1,3,5] to workspace           # 从当前视图选择添加
+add [2,4] to workspace from candidates  # 明确从 candidates 源
 ```
 
-**存储行为**：temp → workspace（累积）
-**使用建议**：确认元素有价值后执行
+**存储行为**：
+- `add to candidates`: temp → candidates（累积，筛选层）
+- `add to workspace`: candidates/temp → workspace（累积，确认层）
+
+**使用建议**：
+- 发现 temp 中元素有价值 → `add to candidates`（筛选）
+- 从 candidates 中确认最有用 → `add to workspace`（确认）
+- 也可以跳过滤选，直接从 temp 到 workspace
 
 ---
 
@@ -164,12 +203,12 @@ add workspace [1,3,5]  # 从当前视图选择添加
 # 页面加载
 open https://example.com/login
 
-# 第一步：探索核心交互元素
+# 第一步：探索页面，建立候选集
 scan
-# temp: [button x3, input x2, select x1, a x5]
+# candidates: [button x3, input x2, select x1, a x5]
 # 共 11 个元素
 
-# 第二步：探索表单整体结构
+# 第二步：通过 find 探索表单容器
 find form where id="login-form"
 # temp: [form x1]
 
@@ -181,9 +220,9 @@ find input
 .find where type="password"
 # temp: [input#password]
 
-# 第五步：确认有价值
-add workspace
-# workspace: [input#password]
+# 第五步：筛选到 candidates
+add to candidates
+# candidates: [原有元素 + input#password 置顶]
 
 # 第六步：继续探索按钮
 find button
@@ -193,11 +232,15 @@ find button
 .find where text contains "Login"
 # temp: [button#login]
 
-# 第八步：确认
-add workspace
-# workspace: [input#password, button#login]
+# 第八步：直接确认到 workspace（跳过筛选）
+add to workspace
+# workspace: [button#login]
 
-# 第九步：预览研究
+# 第九步：从 candidates 确认密码框
+add [1] to workspace from candidates
+# workspace: [button#login, input#password]
+
+# 第十步：预览研究
 preview workspace
 # 高亮显示这两个元素，分析选择器
 ```
@@ -205,32 +248,37 @@ preview workspace
 ### 场景 2：分析商品列表页
 
 ```bash
-# 第一步：探索核心交互
+# 第一步：探索页面，建立候选集
 scan
-# temp: [button x5, input x1, select x2, a x20]
+# candidates: [button x5, input x1, select x2, a x20]
+# 共 28 个元素
 
-# 第二步：发现图片不够，扩展探索范围
+# 第二步：发现图片不够，扩展候选集
 scan +img
-# temp: [原有 + img x30]
+# candidates: [原有 + img x30]
 # 共 58 个元素
 
 # 第三步：图片太多，只关注主图
 scan img where class contains "main"
-# temp: [img x5]
+# candidates: [img x5]（覆盖）
 
-# 第四步：挑选主图加入工作区
-add workspace [1,3,5]
+# 第四步：先把主图筛选到 candidates（已经在 candidates）
+count candidates
+# candidates: [img x5]
+
+# 第五步：从 candidates 挑选主图确认到 workspace
+add [1,3,5] to workspace
 # workspace: [3 个主图]
 
-# 第五步：探索购买按钮
+# 第六步：探索购买按钮
 find button where text contains "Buy"
 # temp: [button x3]
 
-# 第六步：确认
-add workspace
+# 第七步：直接确认到 workspace（跳过筛选）
+add to workspace
 # workspace: [3 个主图, 3 个购买按钮]
 
-# 第七步：高亮所有元素
+# 第八步：高亮所有元素
 preview workspace
 ```
 
@@ -239,9 +287,15 @@ preview workspace
 ```bash
 # 快速验证页面是否有登录按钮
 find button where text contains "Login"
+# temp: [button x1]
 
-# 看一眼就丢弃（不 add）
-# temp 30 秒后自动清空
+# 看一眼就丢弃（不 add），继续其他探索
+find input
+# temp: [input x2]（原结果已被覆盖）
+
+# 使用 .find 精炼当前 temp（从 input 中找 password）
+.find where type="password"
+# temp: [input#password]
 ```
 
 ---
@@ -250,17 +304,20 @@ find button where text contains "Login"
 
 ### 1. 语义明确原则
 
-- `scan` = 探索（宽泛、增量/覆盖）
-- `find` = 定位（精准、覆盖）
-- `add` = 确认（累积）
-- `.find` = 精炼（链式）
+- `scan` = 探索（宽泛、覆盖 candidates）
+- `find` = 定位（精准、覆盖 temp）
+- `add to candidates` = 筛选（从 temp 到 candidates）
+- `add to workspace` = 确认（从 candidates/temp 到 workspace）
+- `.find` = 精炼（从 temp 过滤，结果仍存 temp）
 
-### 2. 存储统一原则
+### 2. 分层存储原则
 
-所有查询命令（`scan`/`find`）**统一存储到 temp**，差异在于**使用模式**：
+不同命令存储到不同层级：
 
-- `scan`：支持增量扩展（`+tag`）和覆盖（`tag`）
-- `find`：总是覆盖，支持精炼
+- **find**：**temp**（探索层，反复覆盖）
+- **scan**：**candidates**（筛选层，页面级持久）
+- **add to candidates**：temp → candidates（累积筛选）
+- **add to workspace**：candidates/temp → workspace（累积确认）
 
 ### 3. 零噪音原则
 
@@ -271,7 +328,7 @@ find button where text contains "Login"
 
 ### 4. 覆盖语义原则
 
-- **temp**：查询覆盖，每次 `find`/`scan` 都会覆盖上次结果
+- **temp**：查询覆盖，每次 `find` 都会覆盖上次结果
 - **candidates**：页面级持久，作为全局探索层
 - **workspace**：会话级累积，只增不减（除非手动 clear）
 
@@ -280,10 +337,16 @@ find button where text contains "Login"
 支持从宽泛到精准的自然探索流程：
 
 ```bash
-scan              # 宽泛：页面有什么？
-find button       # 精准：按钮有哪些？
-.find where visible  # 精炼：可见的按钮
-add workspace     # 确认：保存有用的
+# 经典渐进式（三层完整流程）
+scan                          # 宽泛探索 → candidates
+find button                   # 精准定位 → temp
+add to candidates             # 筛选感兴趣 → candidates
+find button where visible     # 进一步精细 → temp
+add [1] to workspace          # 确认价值 → workspace
+
+# 快速确认式（跳过筛选层）
+find button                   # 探索 → temp
+add to workspace              # 直接确认 → workspace
 ```
 
 ---
@@ -318,26 +381,37 @@ count temp             # 统计临时结果数量
 
 ### ✅ 推荐做法
 
-1. **页面加载后先 scan**：建立全局探索层
+1. **页面加载后先 scan**：建立候选集
    ```bash
    open https://example.com
-   scan
+   scan                    # candidates
+   count candidates        # 查看数量
    ```
 
 2. **使用 find 快速试探**：不确定时快速验证
    ```bash
    find button where text contains "Submit"
-   # 看一眼，不 add = 临时验证
+   # temp: [button]，看一眼即可，不 add
    ```
 
-3. **确认价值再 add**：避免 workspace 臃肿
+3. **先筛选到 candidates，再确认到 workspace**
    ```bash
-   .find where visible
-   # 确认有用
-   add workspace
+   find button where visible      # temp
+   add to candidates              # 筛选保存到 candidates
+
+   # 继续分析 candidates...
+   list candidates
+   add [1,2] to workspace         # 仅确认最有价值的
    ```
 
-4. **定期清理 workspace**：长时间分析后
+4. **ctrl-c ctrl-v（复制粘贴）模式：跳过筛选**
+   ```bash
+   # 当元素已经很有把握时，跳过 candidates 直接到 workspace
+   find button where text="Login"
+   add to workspace               # 直接确认（跳过筛选层）
+   ```
+
+5. **定期清理 workspace**：长时间分析后
    ```bash
    clear workspace
    ```
@@ -349,18 +423,28 @@ count temp             # 统计临时结果数量
    scan +img +span +div +form  # ❌ 可能 500+ 元素
    ```
 
-2. **不要滥用 add**：workspace 只存有价值的
+2. **不要滥用 workspace**：只存最有价值的元素
    ```bash
    find input
-   add workspace      # ❌ 所有输入框都存？没必要
+   add to workspace      # ❌ 所有输入框都存？没必要，应先 add to candidates
    ```
 
-3. **忘记 add 会导致结果丢失**：temp 会被下次查询覆盖
+3. **忘记 add 导致 temp 丢失**：temp 会被下次 find 覆盖
    ```bash
    find button
    # ... 执行其他查询
    find input         # temp 被覆盖
+   ### 错误：忘记在覆盖前 add to candidates
    list temp          # ❌ 显示的是 input，不是 button
+   ```
+
+4. **不要过度依赖 scan**：scan 用于初始探索，精细查询用 find
+   ```bash
+   # ❌ 错误
+   scan button        # 意图不明确
+
+   # ✅ 正确
+   find button        # 意图清晰，精准查询
    ```
 
 ---
@@ -387,12 +471,16 @@ default_tags = button, input, select, textarea, a, img
 
 ## 附录：快速参考卡
 
-| 命令 | 语法 | 存储 | 用途 |
-|------|------|------|------|
-| `scan` | `scan [+tag \| tag]` | temp（覆盖） | 探索页面 |
-| `find` | `find <tag> [where ...]` | temp（覆盖） | 精准查询 |
-| `.find` | `.find where ...` | temp（覆盖） | 精炼结果 |
-| `add` | `add workspace` | workspace（累积） | 确认保存 |
-| `preview` | `preview workspace` | - | 预览/高亮 |
+| 命令 | 语法 | 存储位置 | 用途 |
+|------|------|----------|------|
+| `scan` | `scan [+tag]` | **candidates**（覆盖） | 探索页面，建立候选集 |
+| `find` | `find <tag> [where ...]` | **temp**（覆盖） | 精准查询，快速试探 |
+| `.find` | `.find where ...` | **temp**（覆盖） | 精炼当前 temp 结果 |
+| `add to candidates` | `add [indices] to candidates` | candidates（累积） | 筛选：temp → candidates |
+| `add to workspace` | `add [indices] to workspace [from candidates]` | workspace（累积） | 确认：candidates/temp → workspace |
+| `clear candidates` | `clear candidates` | - | 清空候选区 |
+| `clear workspace` | `clear workspace` | - | 清空工作区 |
 
-**记忆口诀**：**扫（scan）探（temp）探（temp），确（add）存（workspace）**
+**三层架构口诀**：**探（find/temp）→ 筛（add/candidates）→ 确（add/workspace）**
+
+**数据流动**：`find` → `temp` → `add to candidates` → `candidates` → `add to workspace` → `workspace`

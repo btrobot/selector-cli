@@ -107,6 +107,7 @@ class TokenType(Enum):
     # V2 - Additional tokens
     DOT = auto()        # . (for .find)
     DOUBLE_DASH = auto()  # -- (for options like --deep)
+    TO = auto()         # to (for add to workspace)
     FROM = auto()       # from
 
     # Other
@@ -192,6 +193,7 @@ class Lexer:
         'yaml': TokenType.YAML,
 
         # V2 keywords
+        'to': TokenType.TO,
         'from': TokenType.FROM,
 
         # Logical operators
