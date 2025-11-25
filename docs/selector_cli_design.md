@@ -31,6 +31,34 @@ Selector CLI 的设计围绕**元素的渐进式分析流程**展开，模拟人
 - **candidates**：感兴趣的元素集合，等待深度分析
 - **workspace**：确认有价值元素的持久存储
 
+### 语法糖设计：scan 的便捷性
+
+`scan` 是一个**语法糖**，提供了**免探索**的便捷方式：
+
+```bash
+# 完整流程（手动探索）
+find button                   # 1. 探索：手动查询按钮 → temp
+add to candidates             # 2. 筛选：添加到候选区
+find input                    # 3. 再次探索：查询输入框 → temp
+add to candidates             # 4. 筛选：添加到候选区
+add [1,3] to workspace        # 5. 确认：从 candidates 挑选到 workspace
+
+# 便捷流程（使用 scan）
+scan                          # 1. 一键探索：自动扫描默认元素 → candidates
+add [1,3,7] to workspace      # 2. 直接确认：从 candidates 挑选到 workspace
+```
+
+**设计考量**：
+- **新手友好**：页面加载后执行一次 `scan`，立即获得可用元素
+- **高效**：标准页面（登录、表单、购物车）的交互元素往往就是默认 5 种
+- **可扩展**：`scan +img` 快速扩展探索范围，无需多次 `find`
+- **不冲突**：scan 不影响 `find` → `add to candidates` 的常规流程
+
+**适用场景**：
+- ✅ 首次分析页面，快速建立全局观
+- ✅ 标准交互页面（登录、注册、表单）
+- ✅ 作为分析起点，之后再通过 `find` 补充特定元素
+
 ---
 
 ## 三层架构详解
@@ -381,22 +409,36 @@ count temp             # 统计临时结果数量
 
 ### ✅ 推荐做法
 
-1. **页面加载后先 scan**：建立候选集
+1. **页面加载后先 scan**：使用语法糖快速建立候选集
    ```bash
    open https://example.com
-   scan                    # candidates
+   scan                    # 一键探索：按钮/输入框/链接 → candidates
    count candidates        # 查看数量
+   list candidates [1-5]   # 查看前5个
    ```
 
-2. **使用 find 快速试探**：不确定时快速验证
+2. **标准页面直接用 scan**：登录、表单等常见页面
+   ```bash
+   # 分析登录表单 → 2步完成
+   scan                                      # 1. scan 一步到位 → candidates
+   add [1,2,3] to workspace                  # 2. 直接挑选到 workspace
+
+   # 对比：完整流程需要 4 步
+   find button; add to candidates            # 1-2
+   find input; add to candidates             # 3-4
+   add [1,2] to workspace                    # 5
+   ```
+
+3. **使用 find 快速试探**：不确定时快速验证
    ```bash
    find button where text contains "Submit"
    # temp: [button]，看一眼即可，不 add
    ```
 
-3. **先筛选到 candidates，再确认到 workspace**
+4. **先筛选到 candidates，再确认到 workspace**
    ```bash
-   find button where visible      # temp
+   scan                           # 初始探索 → candidates
+   find button where visible      # 进一步探索 → temp
    add to candidates              # 筛选保存到 candidates
 
    # 继续分析 candidates...
@@ -404,14 +446,14 @@ count temp             # 统计临时结果数量
    add [1,2] to workspace         # 仅确认最有价值的
    ```
 
-4. **ctrl-c ctrl-v（复制粘贴）模式：跳过筛选**
+5. **ctrl-c ctrl-v（复制粘贴）模式：跳过筛选**
    ```bash
    # 当元素已经很有把握时，跳过 candidates 直接到 workspace
    find button where text="Login"
    add to workspace               # 直接确认（跳过筛选层）
    ```
 
-5. **定期清理 workspace**：长时间分析后
+6. **定期清理 workspace**：长时间分析后
    ```bash
    clear workspace
    ```
@@ -471,15 +513,32 @@ default_tags = button, input, select, textarea, a, img
 
 ## 附录：快速参考卡
 
-| 命令 | 语法 | 存储位置 | 用途 |
-|------|------|----------|------|
-| `scan` | `scan [+tag]` | **candidates**（覆盖） | 探索页面，建立候选集 |
-| `find` | `find <tag> [where ...]` | **temp**（覆盖） | 精准查询，快速试探 |
-| `.find` | `.find where ...` | **temp**（覆盖） | 精炼当前 temp 结果 |
-| `add to candidates` | `add [indices] to candidates` | candidates（累积） | 筛选：temp → candidates |
-| `add to workspace` | `add [indices] to workspace [from candidates]` | workspace（累积） | 确认：candidates/temp → workspace |
-| `clear candidates` | `clear candidates` | - | 清空候选区 |
-| `clear workspace` | `clear workspace` | - | 清空工作区 |
+| 命令 | 语法 | 存储位置 | 用途 | 模式 |
+|------|------|----------|------|------|
+| `scan` | `scan [+tag]` | **candidates**（覆盖） | 语法糖：一键探索页面 | 便捷 |
+| `find` | `find <tag> [where ...]` | **temp**（覆盖） | 精准查询，快速试探 | 标准 |
+| `.find` | `.find where ...` | **temp**（覆盖） | 精炼当前 temp 结果 | 标准 |
+| `add to candidates` | `add [indices] to candidates` | candidates（累积） | 筛选：temp → candidates | 标准 |
+| `add to workspace` | `add [indices] to workspace [from candidates]` | workspace（累积） | 确认：candidates/temp → workspace | 标准 |
+| `clear candidates` | `clear candidates` | - | 清空候选区 | - |
+| `clear workspace` | `clear workspace` | - | 清空工作区 | - |
+
+### 使用模式
+
+**便捷模式**（语法糖）：
+```bash
+scan                          # 1步：一键探索 → candidates
+add [1,3] to workspace        # 2步：直接确认 → workspace
+```
+
+**标准模式**：
+```bash
+find button                   # 1. 探索 → temp
+add to candidates             # 2. 筛选 → candidates
+find input                    # 3. 再探索 → temp
+add to candidates             # 4. 再筛选 → candidates
+add [1,2] to workspace        # 5. 确认 → workspace
+```
 
 **三层架构口诀**：**探（find/temp）→ 筛（add/candidates）→ 确（add/workspace）**
 
