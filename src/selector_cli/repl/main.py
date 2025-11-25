@@ -143,9 +143,12 @@ class SelectorREPL:
 
     async def _initialize(self):
         """Initialize REPL"""
-        # Setup readline history
+        # Setup readline history and autocomplete
         if READLINE_AVAILABLE:
             try:
+                # Setup autocomplete
+                self._setup_readline()
+
                 # Load history from file if it exists
                 if self.context.HISTORY_FILE.exists():
                     readline.read_history_file(str(self.context.HISTORY_FILE))
